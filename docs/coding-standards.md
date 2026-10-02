@@ -40,6 +40,29 @@
 - Otherwise, fetch data directly in server components
 - Dynamic routes for item/collection pages
 
+## Architecture Exceptions
+
+The Next.js rules above assume a server-rendered CRUD app. Pulse is a single
+live client surface, so the deviations below are deliberate. Do not "fix" them.
+
+- `app/page.tsx` is a client component. Geolocation, Mapbox GL, WebRTC, and the
+  poll loop are all browser-only, and they share one state machine.
+- Coordination uses Route Handlers under `app/api/`, not Server Actions. The
+  poll loop needs a plain GET, and `navigator.sendBeacon` on tab close can only
+  target a URL.
+- There is no server-side data fetching. Nothing durable exists to render;
+  presence arrives through the poll loop.
+- Route Handlers are uncached by default in Next 16, and Cache Components is not
+  enabled, so `export const dynamic = "force-dynamic"` in the existing API
+  routes is redundant. Harmless where it is, but do not add it to new routes
+  believing it is required.
+- Request-scoped middleware belongs in `proxy.ts`. The `middleware` filename and
+  named export are deprecated in Next 16. The proxy runtime is `nodejs` and is
+  not configurable.
+- Route Handlers return `Response.json({ error }, { status })` on failure rather
+  than the `{ success, data, error }` Server Action shape. That shape still
+  applies to any Server Action we add.
+
 ## File Organization
 
 No `src/` directory - `app/` lives at the project root.
@@ -66,7 +89,26 @@ No `src/` directory - `app/` lives at the project root.
 
 ## Database
 
-> Fill in
+Postgres via Prisma 7 using the `@prisma/adapter-pg` driver adapter. The client
+singleton lives in `lib/prisma.ts`.
+
+- The schema holds **coordination state only**. Presence and signal rows are
+  transient: deleted on leave, on staleness, or once drained. Never add a model
+  that persists user content.
+- Chat text, video, and raw coordinates never reach the database. Only
+  privacy-offset coordinates are stored.
+- `DATABASE_URL` must be a pooled connection string in production (Neon pooler
+  or PgBouncer).
+- No interactive transactions (`prisma.$transaction(async tx => ...)`). They are
+  unreliable over a pooler. Use independent statements, or the array form
+  `$transaction([...])` when atomicity is genuinely required.
+- Always import the singleton from `lib/prisma.ts`. Never construct a
+  `PrismaClient` inside a route handler.
+- Every write must be scoped by id. A `where: {}` update touches every session
+  row in the table.
+- Schema changes go through `npx prisma migrate dev --name <change>` and the
+  generated migration is committed. `prisma db push` is for throwaway local
+  iteration only.
 
 ## Data Fetching
 
