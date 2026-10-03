@@ -1,48 +1,29 @@
 # Current Feature
 
-Phase 3 - Security hardening
+Phase 4 - New features
 
 ## Status
 
-Completed
+In progress
 
 ## Goals
 
-Nobody can act as another user, read their messages, or remove them from the
-map, and nobody can flood the coordination API. Pulse stays anonymous, with
-no accounts and no new external services.
+A video call works every time, and the call, chat, and request flows give
+strangers mute and camera controls, a typing indicator, and an alert when
+someone reaches out. Nothing new reaches the server.
 
-Full spec, findings, and items: [docs/specs/phase-3.md](specs/phase-3.md)
+Full spec and items: [docs/specs/phase-4.md](specs/phase-4.md)
 
 ## Notes
 
-All seven findings were reproduced with `curl` against the local app. They
-share one root cause: the client-chosen session id is public (every poll
-returns it) and is also the only credential.
+Items, in order, each on its own branch:
 
-- F1 - Polling exposes every user's id to anyone
-- F2 - Anyone can read another user's mailbox
-- F3 - Anyone can send signals as anyone
-- F4 - Anyone can move another user's dot
-- F5 - Anyone can remove another user from the map
-- F6 - No rate limits
-- F7 - No security headers
+- V1 - Fix unreliable remote video (reproduce with two real cameras first)
+- V2 - Video call controls (mute, camera off)
+- C1 - Typing indicator
+- A1 - Incoming request alert (tone and vibration)
 
-All seven are closed:
-
-- H1 - server-issued session tokens (F2 to F5)
-- H2 - server-side pairing for signals (F3)
-- H3 - Zod validation on every route
-- H4 - rate limits (F6)
-- H5 - an id-free view of who is online for the entry gate (F1)
-- H6 - security headers (F7)
-
-Production gets the three Phase 3 migrations automatically on the next
-`dev` to `main` merge, which needs `DIRECT_URL` set in Vercel. That deploy
-logs everyone off the map once.
-
-Phase 2 is complete: [docs/specs/phase-2.md](specs/phase-2.md). The Phase 4
-backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
+Phase 3 is complete: [docs/specs/phase-3.md](specs/phase-3.md).
 
 ## History
 
@@ -69,3 +50,4 @@ backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
 - 2026-10-03 - Baselined the production database, moved local development to
   a Neon `dev` branch, and made production builds apply migrations.
 - 2026-10-03 - Phase 3 completed (H1 to H6). All seven findings closed.
+- 2026-10-03 - Wrote the Phase 4 spec (V1, V2, C1, A1).
