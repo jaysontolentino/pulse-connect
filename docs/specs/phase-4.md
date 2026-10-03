@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Completed
 
 ## Goal
 
@@ -22,6 +22,8 @@ at a 390 px mobile width, before it is committed. V1 goes first because V2 is
 built on the video call it fixes.
 
 ### V1 - Fix unreliable remote video
+
+- Status: done in #30.
 
 - Symptom (from Phase 2 testing): after a video request is accepted, the
   accepting side's remote tracks arrive muted (no frames), and in some calls
@@ -66,6 +68,8 @@ built on the video call it fixes.
 
 ### V2 - Video call controls
 
+- Status: done in #31.
+
 - Add microphone and camera toggle buttons to the `VideoPanel` control bar,
   beside End video, following Azar: round icon buttons, with a clear
   on/off state and an `aria-pressed` value.
@@ -87,6 +91,8 @@ built on the video call it fixes.
 
 ### C1 - Typing indicator
 
+- Status: done in #32.
+
 - Add a `typing` message to the data channel: `{ t: "typing" }`, sent when
   the user types into a non-empty draft, at most once every 3 seconds.
 - The receiver shows "Stranger is typing" in `ChatPanel`, below the last
@@ -101,6 +107,8 @@ built on the video call it fixes.
     stranger stops typing without sending.
 
 ### A1 - Incoming request alert
+
+- Status: done in #33.
 
 - When a connection request or a video request arrives, play a short, soft
   tone and vibrate (`navigator.vibrate`, where supported).
@@ -120,6 +128,8 @@ built on the video call it fixes.
 
 ### B1 - Gate dots are tappable right after joining
 
+- Status: done in #34.
+
 - Found while testing A1. For up to one poll after Enter, the map still
   shows the entry gate's dots, whose ids are positions (`lat,lng`) rather
   than session ids. Tapping one sends a request the API rejects with `400`,
@@ -130,3 +140,13 @@ built on the video call it fixes.
   blinks.
 - Done when tapping a dot repeatedly from the moment Enter is pressed sends
   one valid request, and the stranger sees it.
+
+## Open checks
+
+Automated runs used headless Chrome with fake cameras, which cannot cover
+these. Each needs a person and real hardware:
+
+- V1 - ten video calls in a row with two real cameras, plus ending and
+  restarting video in the same chat from both sides.
+- A1 - a request arriving while the tab is in the background plays the
+  tone, and an Android phone vibrates.

@@ -4,7 +4,7 @@ Phase 4 - New features
 
 ## Status
 
-In progress
+Completed
 
 ## Goals
 
@@ -16,13 +16,16 @@ Full spec and items: [docs/specs/phase-4.md](specs/phase-4.md)
 
 ## Notes
 
-Items, in order, each on its own branch:
+All five items are done:
 
-- V1 - Fix unreliable remote video (reproduce with two real cameras first)
-- V2 - Video call controls (mute, camera off)
-- C1 - Typing indicator
-- A1 - Incoming request alert (tone and vibration)
-- B1 - Gate dots tappable right after joining (found while testing A1)
+- V1 - remote video negotiated once per chat, so it always arrives (#30)
+- V2 - mic and camera toggles during a call (#31)
+- C1 - typing indicator (#32)
+- A1 - tone and vibration on incoming requests (#33)
+- B1 - dots tappable only once they carry session ids (#34)
+
+Still to check by hand, with real hardware: V1 with two real cameras, and
+A1 in a background tab and on an Android phone. See Open checks in the spec.
 
 Phase 3 is complete: [docs/specs/phase-3.md](specs/phase-3.md).
 
@@ -52,3 +55,11 @@ Phase 3 is complete: [docs/specs/phase-3.md](specs/phase-3.md).
   a Neon `dev` branch, and made production builds apply migrations.
 - 2026-10-03 - Phase 3 completed (H1 to H6). All seven findings closed.
 - 2026-10-03 - Wrote the Phase 4 spec (V1, V2, C1, A1).
+- 2026-10-03 - Fixed V1 (media slots negotiated once, so remote video always
+  arrives).
+- 2026-10-03 - Added V2 (mic and camera toggles), C1 (typing indicator), and
+  A1 (incoming request alert).
+- 2026-10-03 - Fixed B1 (gate dots no longer tappable before session ids
+  arrive), found while testing A1.
+- 2026-10-03 - Phase 4 completed (V1, V2, C1, A1, B1). Real-hardware checks
+  for V1 and A1 remain open.
