@@ -28,9 +28,8 @@ browser, and each is fixed before the next is added.
 - D4 - a closed tab strands the other peer on a dead chat and leaves them
   `busy`. Fixed.
 
-Still to record: the poll heartbeat refreshes every presence row, so offline
-users are never reaped (confirmed 2026-10-03 after a server restart left ghost
-dots).
+- D5 - offline users are never removed from the map, because the poll
+  heartbeat refreshed every presence row. Fixed.
 
 Verification also surfaced two findings for Phase 3: unauthenticated polling
 exposes every user's coordinates, and `/api/leave` lets any caller remove any
@@ -49,3 +48,4 @@ user from the map.
 - 2026-10-03 - Fixed D3 (chat messages sent with the type the receiver reads).
 - 2026-10-03 - Fixed D4 (the surviving peer ends the connection when the
   channel closes or fails).
+- 2026-10-03 - Fixed D5 (poll heartbeat scoped to the caller).

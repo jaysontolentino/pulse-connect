@@ -107,6 +107,27 @@ mock geolocation set in DevTools, Sensors. Keep the Network tab on
   - Pressing End still ends cleanly for both sides, and D1 to D3 still pass.
   - `npm run build` and `npm run lint` pass clean.
 
+### D5 - Offline users are never removed from the map
+
+- Status: fixed on `fix/heartbeat-scope`
+- Where: `app/api/poll/route.ts:25-28`
+- Symptom: a user whose leave beacon is lost (server down, crash, network
+  drop) stays on the map forever. Stopping the server with two users online,
+  restarting it, and refreshing both tabs showed 3 other users instead of 1.
+- Cause: the heartbeat runs `updateMany({ where: {} })`, so every poll
+  refreshes `lastSeen` on every presence row, not just the caller's. While
+  anyone is polling, no row ever goes stale and the reaper never removes it.
+  This is the unscoped write the coding standards warn about.
+- Reproduced in the browser: two tabs online, stop the server, start it
+  again, refresh both tabs. The two old rows stayed and were counted online.
+- Fix: scope the heartbeat to the caller with `where: { id }`.
+- Done when:
+  - Repeating the restart steps shows each tab 1 other user once the old rows
+    pass `STALE_MS` (15 seconds).
+  - A tab that stays open and polling keeps its dot on the map.
+  - D1 to D4 still pass.
+  - `npm run build` and `npm run lint` pass clean.
+
 ## Out of scope
 
 Styling, security hardening, and new features. Those are Phases 2, 3, and 4.

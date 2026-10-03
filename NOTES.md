@@ -40,3 +40,13 @@
 - Fixed: `PeerSession` now reports a data channel closed by the remote side,
   and the page ends the connection on that or on a failed connection, sending
   `end` so the D1 path clears `busy`.
+
+### D5 - Offline users are never removed from the map
+
+- Broken: users whose leave beacon was lost stayed on the map forever, so the
+  online count kept growing.
+- Found: in the browser, stopping and restarting the server with two users
+  online, then refreshing both tabs, left the two old rows counted as online.
+  The heartbeat in `app/api/poll/route.ts` updated `lastSeen` on every row.
+- Fixed: the heartbeat is scoped to the caller with `where: { id }`, so rows
+  that stop polling go stale and are reaped.
