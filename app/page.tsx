@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import EntryGate from "./components/EntryGate";
 import WorldMap from "./components/WorldMap";
 import ConnectionPrompt from "./components/ConnectionPrompt";
+import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
 import { join, leave, poll, sendSignal } from "@/lib/api";
@@ -327,6 +328,21 @@ export default function Home() {
 
   const inChat = conn.kind === "connecting" || conn.kind === "connected";
 
+  const hasStatus = Boolean(notice) || conn.kind === "requesting" || video === "requesting";
+  const status: ReactNode = hasStatus && (
+    <div className="pointer-events-auto flex flex-col items-center gap-2">
+      {notice && <StatusPill>{notice}</StatusPill>}
+      {conn.kind === "requesting" && (
+        <StatusPill pending action={{ label: "Cancel", onClick: cancelRequest }}>
+          Requesting connection…
+        </StatusPill>
+      )}
+      {video === "requesting" && (
+        <StatusPill pending>Waiting for stranger to accept video…</StatusPill>
+      )}
+    </div>
+  );
+
   return (
     <main className="fixed inset-0 overflow-hidden">
       <WorldMap
@@ -336,21 +352,9 @@ export default function Home() {
         canConnect={conn.kind === "idle"}
       />
 
-      {notice && (
-        <div className="absolute left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-raised/90 px-4 py-2 text-sm text-foreground shadow-lg backdrop-blur">
-          {notice}
-        </div>
-      )}
-
-      {conn.kind === "requesting" && (
-        <div className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full bg-raised/90 px-4 py-2 text-sm text-foreground shadow-lg backdrop-blur">
-          <span>Requesting connection…</span>
-          <button
-            onClick={cancelRequest}
-            className="rounded-full bg-line-strong px-3 py-1 text-xs hover:bg-subtle"
-          >
-            Cancel
-          </button>
+      {!inChat && hasStatus && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 flex justify-center px-4">
+          {status}
         </div>
       )}
 
@@ -375,13 +379,8 @@ export default function Home() {
           }}
           onStartVideo={startVideoRequest}
           onEnd={endConnection}
+          status={status}
         />
-      )}
-
-      {video === "requesting" && (
-        <div className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full bg-raised/90 px-4 py-2 text-sm text-foreground shadow-lg backdrop-blur">
-          Waiting for stranger to accept video…
-        </div>
       )}
 
       {video === "incoming" && (

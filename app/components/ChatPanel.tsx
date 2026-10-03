@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export interface ChatMessage {
   id: number;
@@ -15,6 +15,7 @@ export default function ChatPanel({
   onSend,
   onStartVideo,
   onEnd,
+  status,
 }: {
   messages: ChatMessage[];
   connected: boolean;
@@ -22,6 +23,7 @@ export default function ChatPanel({
   onSend: (text: string) => void;
   onStartVideo: () => void;
   onEnd: () => void;
+  status?: ReactNode;
 }) {
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -64,29 +66,36 @@ export default function ChatPanel({
         </div>
       </header>
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-4">
-        {messages.length === 0 && (
-          <p className="mt-8 text-center text-sm text-muted">
-            Say hello. Messages are peer-to-peer and never stored.
-          </p>
-        )}
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex ${m.mine ? "justify-end" : "justify-start"}`}
-          >
-            <span
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-                m.mine
-                  ? "bg-accent text-on-accent"
-                  : "bg-raised text-foreground"
-              }`}
-            >
-              {m.text}
-            </span>
+      <div className="relative min-h-0 flex-1">
+        {status && (
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-4">
+            {status}
           </div>
-        ))}
-        <div ref={endRef} />
+        )}
+        <div className="h-full space-y-2 overflow-y-auto p-4">
+          {messages.length === 0 && (
+            <p className="mt-16 text-center text-sm text-muted">
+              Say hello. Messages are peer-to-peer and never stored.
+            </p>
+          )}
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex ${m.mine ? "justify-end" : "justify-start"}`}
+            >
+              <span
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                  m.mine
+                    ? "bg-accent text-on-accent"
+                    : "bg-raised text-foreground"
+                }`}
+              >
+                {m.text}
+              </span>
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
       </div>
 
       <form onSubmit={submit} className="flex gap-2 border-t border-line p-3">
