@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { bearerToken, sessionForToken } from "@/lib/session";
 import { decideSignal, type PairingDecision } from "@/lib/pairing";
 import { parseBody, signalSchema } from "@/lib/schemas";
+import { mailboxHasRoom, takeSessionSlot } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,15 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   const fromId = sender.id;
+
+  // Every attempt counts, including ones the pairing rules will reject.
+  const withinLimits =
+    (await takeSessionSlot(fromId, "signal")) &&
+    (signalType !== "request" || (await takeSessionSlot(fromId, "request"))) &&
+    (await mailboxHasRoom(toId));
+  if (!withinLimits) {
+    return Response.json({ error: "rate limited" }, { status: 429 });
+  }
 
   const target = await prisma.presence.findUnique({
     where: { id: toId },

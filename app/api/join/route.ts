@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { applyPrivacyOffset } from "@/lib/geo";
 import { joinSchema, parseBody } from "@/lib/schemas";
 import { createSession } from "@/lib/session";
+import { takeJoinSlot } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,10 @@ export const dynamic = "force-dynamic";
 // Applies a 1 to 3 km privacy offset and creates the presence row under a
 // server-issued id. Raw coordinates are never stored.
 export async function POST(request: NextRequest) {
+  if (!takeJoinSlot(request)) {
+    return Response.json({ error: "rate limited" }, { status: 429 });
+  }
+
   const body = await parseBody(request, joinSchema);
   if (!body) {
     return Response.json({ error: "invalid coordinates" }, { status: 400 });

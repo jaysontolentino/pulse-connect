@@ -298,3 +298,27 @@
 - Checked: all five headers on the page and API routes. A full browser run
   (gate globe with country labels, connect, chat, video, end, reconnect)
   had no CSP violations under `next start` or `next dev`.
+
+### H4 - Rate limits
+
+- Changed: `lib/rate-limit.ts` caps each session at 120 signals and 10
+  connection requests per minute, each recipient at 100 undelivered
+  messages, and each client address at 10 joins per minute. Over a limit the
+  route returns 429.
+- Decision: limits sit well above measured use. Two full sessions (connect,
+  chat, video on and off, end, twice) sent 14 signals per user in a minute,
+  at most 4 in a second. Real networks gather more ICE candidates.
+- Decision: session limits use fixed one-minute windows stored on the
+  presence row, counted in one `UPDATE ... RETURNING` so concurrent signals
+  cannot both slip under the limit, and gone when the session ends. Every
+  attempt counts, including ones the pairing rules reject.
+- Decision: joins have no session yet, so they are limited in memory per
+  server instance, keyed by the client address hashed with a per-instance
+  salt. On serverless this is best effort, and it trusts `x-forwarded-for`,
+  which Vercel sets itself.
+- Note: the mailbox cap counts then inserts, so heavy concurrency can overshoot
+  it by a few messages.
+- Checked: against the Neon `dev` branch, 200 parallel signals stopped at
+  exactly 120, the 11th request in a minute got 429, a mailbox stopped at 100
+  until drained, and the 11th join from one address got 429 while another
+  address still joined. The full two-session browser flow had no 429s.
