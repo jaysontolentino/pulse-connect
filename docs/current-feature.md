@@ -4,7 +4,7 @@ Phase 1 - Make it run
 
 ## Status
 
-In Progress
+Completed
 
 ## Goals
 
@@ -24,10 +24,8 @@ browser, and each is fixed before the next is added.
   candidates were flushed before the remote description was set. Fixed.
 - D3 - sent chat messages never reach the other user, because the sender tags
   them `msg` and the receiver only reads `chat`. Fixed.
-
 - D4 - a closed tab strands the other peer on a dead chat and leaves them
   `busy`. Fixed.
-
 - D5 - offline users are never removed from the map, because the poll
   heartbeat refreshed every presence row. Fixed.
 - D6 - video call controls are pushed off screen on large windows, because
@@ -42,8 +40,8 @@ user from the map.
 - 2026-10-02 - Added agent context docs and fixed the CLAUDE.md import paths.
 - 2026-10-02 - Filled the Database and Architecture Exceptions sections of the
   coding standards, and wrote the Phase 1 spec.
-- 2026-10-02 - Verified the Phase 1 defects against the live API. Confirmed D1,
-  D3, D4, and found D7 (a closing tab strands the other peer).
+- 2026-10-02 - Verified the Phase 1 defects against the live API. Confirmed
+  D1 and found the closing-tab defect, later recorded as D4.
 - 2026-10-03 - Fixed D1 (busy flag cleared on end), merged to dev.
 - 2026-10-03 - Fixed D2 (ICE candidates flushed after the remote description),
   merged to dev.
@@ -52,3 +50,5 @@ user from the map.
   channel closes or fails).
 - 2026-10-03 - Fixed D5 (poll heartbeat scoped to the caller).
 - 2026-10-03 - Fixed D6 (video panel no longer sized by the remote stream).
+- 2026-10-03 - Phase 1 completed. Two strangers can see each other, connect,
+  chat, and start a video call.
