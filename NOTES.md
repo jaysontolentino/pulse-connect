@@ -139,3 +139,26 @@
 - Checked: in the browser with a fake camera, the connection prompt at 390 px
   and the video prompt at 1280 px over an open chat. Accepting each still
   opened the chat and then the video panel on both sides.
+
+### S5 - Chat panel
+
+- Changed: on desktop the chat is a floating rounded panel inset from the
+  right edge. Below the `sm` breakpoint it is a bottom sheet at 66 dvh with a
+  grabber, leaving the top of the map visible. The header has a live status
+  dot, a Video button with a camera glyph, and End. Bubbles have a tail
+  corner, wrap long or unbroken text, and keep line breaks. Before the
+  connection opens, the empty state reads "Opening a private line to the
+  stranger" instead of "Say hello".
+- Decision: the root layout sets `viewportFit: "cover"` so the safe-area
+  insets apply, and `interactiveWidget: "resizes-content"` so Android Chrome
+  shrinks the layout for the keyboard and the sheet's input stays above it.
+  iOS Safari ignores that setting and pans the focused input into view.
+- Decision: the input uses 16 px text on phones, because iOS Safari zooms
+  the page when focusing an input with smaller text.
+- Decision: the panel is opaque. A translucent, blurred panel let the glow of
+  the dots behind it bleed through as a smudge. The desktop panel stops 40 px
+  above the bottom so it does not cover the Mapbox attribution.
+- Checked: in the browser at 1280 px and 390 px: the connecting state, a
+  two-way conversation with a long sentence and a long unbroken URL, no
+  horizontal overflow, and the newest message in view after 16 messages. The
+  on-screen keyboard could not be exercised headless.
