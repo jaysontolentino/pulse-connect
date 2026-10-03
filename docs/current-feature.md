@@ -4,7 +4,7 @@ Phase 2 - Styling
 
 ## Status
 
-Planned
+Completed
 
 ## Goals
 
@@ -29,7 +29,9 @@ at desktop and 390 px mobile width.
 - S7 - Entry gate
 
 Phase 1 is complete: [docs/specs/phase-1.md](specs/phase-1.md). Its two
-security findings are carried to Phase 3.
+security findings are carried to Phase 3. Features deferred from this phase,
+and the unreliable remote video found while testing S6, are kept in the
+Phase 4 backlog: [docs/specs/phase-4.md](specs/phase-4.md).
 
 ## History
 
@@ -49,3 +51,5 @@ security findings are carried to Phase 3.
 - 2026-10-03 - Phase 1 completed. Two strangers can see each other, connect,
   chat, and start a video call.
 - 2026-10-03 - Wrote the Phase 2 styling spec.
+- 2026-10-03 - Phase 2 completed (S1 to S7). Started the Phase 4 backlog,
+  including the unreliable remote video found during S6.

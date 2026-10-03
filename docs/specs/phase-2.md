@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+Completed
 
 ## Goal
 
@@ -174,6 +174,8 @@ committed.
 - Security hardening (Phase 3) and new features (Phase 4).
 - A light theme.
 - New dependencies. Mapbox GL and Tailwind already cover everything here.
+- Considered after S7 and skipped: a stripped-down base map, an arc to the
+  requested stranger, and fade-in and fade-out for dots.
 
 ## Commit plan
 
