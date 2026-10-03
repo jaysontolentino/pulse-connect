@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { tokenSchema } from "@/lib/schemas";
 
 // The public id is shown to other users so they can address requests. The
 // secret token proves who is calling. Only its hash is stored, so a database
@@ -27,9 +28,11 @@ const SESSION_FIELDS = {
 
 /** The session that owns `token`, with its pairing state, or null. */
 export async function sessionForToken(token: string | null) {
-  if (!token) return null;
+  // A malformed token cannot match a row, so skip the database.
+  const parsed = tokenSchema.safeParse(token);
+  if (!parsed.success) return null;
   return prisma.presence.findUnique({
-    where: { tokenHash: hashToken(token) },
+    where: { tokenHash: hashToken(parsed.data) },
     select: SESSION_FIELDS,
   });
 }

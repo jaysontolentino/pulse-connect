@@ -1,23 +1,11 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { SignalType } from "@/lib/types";
 import { bearerToken, sessionForToken } from "@/lib/session";
 import { decideSignal, type PairingDecision } from "@/lib/pairing";
+import { parseBody, signalSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const VALID_TYPES: SignalType[] = [
-  "request",
-  "accept",
-  "decline",
-  "offer",
-  "answer",
-  "ice",
-  "end",
-];
-
-const MAX_PAYLOAD = 64 * 1024; // SDP/ICE are small; cap to be safe.
 
 // POST /api/signal - bearer token, body { toId, type, payload? }
 // Drops one message into the recipient's mailbox. The sender is always the
@@ -25,37 +13,18 @@ const MAX_PAYLOAD = 64 * 1024; // SDP/ICE are small; cap to be safe.
 // pending request or an accepted pairing (lib/pairing.ts), which also keeps a
 // user to one connection at a time.
 export async function POST(request: NextRequest) {
+  const body = await parseBody(request, signalSchema);
+  if (!body) {
+    return Response.json({ error: "invalid body" }, { status: 400 });
+  }
+  const { toId, type: signalType } = body;
+  const payloadStr = body.payload ?? null;
+
   const sender = await sessionForToken(bearerToken(request));
   if (!sender) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   const fromId = sender.id;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "invalid body" }, { status: 400 });
-  }
-
-  const { toId, type, payload } = (body ?? {}) as Record<string, unknown>;
-
-  if (typeof toId !== "string") {
-    return Response.json({ error: "invalid id" }, { status: 400 });
-  }
-  if (typeof type !== "string" || !VALID_TYPES.includes(type as SignalType)) {
-    return Response.json({ error: "invalid type" }, { status: 400 });
-  }
-  if (
-    payload !== undefined &&
-    payload !== null &&
-    (typeof payload !== "string" || payload.length > MAX_PAYLOAD)
-  ) {
-    return Response.json({ error: "invalid payload" }, { status: 400 });
-  }
-
-  const signalType = type as SignalType;
-  const payloadStr = typeof payload === "string" ? payload : null;
 
   const target = await prisma.presence.findUnique({
     where: { id: toId },

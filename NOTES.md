@@ -250,3 +250,20 @@
   browser: decline, cancel, connect, chat, video, end, and reconnect all
   work, and a closed tab frees the other user (about 15 s, the same as
   before H2).
+
+### H3 - Validate every request with Zod
+
+- Changed: `lib/schemas.ts` holds a Zod schema for each input (join
+  coordinates, the leave token, the signal body with a UUID `toId`, one of
+  the seven signal types, and a payload of at most 64 KB), and `parseBody`
+  reads and validates a body. The hand-written checks (`isValidLatLng`,
+  `VALID_TYPES`, `MAX_PAYLOAD`) are gone. Adds `zod`.
+- Decision: `sessionForToken` checks the token's format first, so a malformed
+  token never reaches the database, and the signal route validates its body
+  before looking up the sender.
+- Decision: `parseBody` reads the body as text, because `sendBeacon` does not
+  send a JSON content type.
+- Checked: with the database address deliberately broken, every malformed
+  join, leave, signal, and poll returned 400 or 401 while valid ones reached
+  the database (500), so validation runs first. Against the Neon `dev`
+  branch, the full two-session browser flow still works.
