@@ -4,7 +4,7 @@ Phase 3 - Security hardening
 
 ## Status
 
-Planned
+Completed
 
 ## Goals
 
@@ -28,9 +28,18 @@ returns it) and is also the only credential.
 - F6 - No rate limits
 - F7 - No security headers
 
-Items: H1 server-issued session tokens, H2 server-side pairing for signals,
-H3 Zod validation, H4 rate limits, H5 a view-only feed for the entry gate,
-H6 security headers.
+All seven are closed:
+
+- H1 - server-issued session tokens (F2 to F5)
+- H2 - server-side pairing for signals (F3)
+- H3 - Zod validation on every route
+- H4 - rate limits (F6)
+- H5 - an id-free view of who is online for the entry gate (F1)
+- H6 - security headers (F7)
+
+Production gets the three Phase 3 migrations automatically on the next
+`dev` to `main` merge, which needs `DIRECT_URL` set in Vercel. That deploy
+logs everyone off the map once.
 
 Phase 2 is complete: [docs/specs/phase-2.md](specs/phase-2.md). The Phase 4
 backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
@@ -57,3 +66,6 @@ backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
   including the unreliable remote video found during S6.
 - 2026-10-03 - Verified the Phase 3 findings against the local API and wrote
   the Phase 3 spec.
+- 2026-10-03 - Baselined the production database, moved local development to
+  a Neon `dev` branch, and made production builds apply migrations.
+- 2026-10-03 - Phase 3 completed (H1 to H6). All seven findings closed.
