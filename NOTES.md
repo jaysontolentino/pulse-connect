@@ -60,3 +60,19 @@
   resolution, so it grew taller than the viewport and the bar was clipped.
 - Fixed: `VideoPanel` gives the container `min-h-0` and positions the remote
   video absolutely, so the stream size no longer drives the layout.
+
+## Phase 2
+
+### S1 - Design tokens and typography
+
+- Changed: the palette lives in `@theme` in `app/globals.css` (background,
+  surface, raised, line, line-strong, foreground, muted, subtle, accent,
+  on-accent, danger, danger-soft). Every raw zinc, emerald, and red class in
+  `app/page.tsx` and `app/components/` now uses a token utility. The unused
+  light-mode variables are gone, and so is the `Arial` override, so Geist
+  applies everywhere.
+- Decision: danger is red-600 rather than red-500, so white button text meets
+  AA contrast. `danger-soft` is a lighter red for error text on the dark
+  background, where red-600 is too dim.
+- Checked: in the browser at 1280 px and 390 px, the entry gate, map,
+  requesting pill, and chat panel on both sides of a live connection.

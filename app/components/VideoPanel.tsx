@@ -34,10 +34,10 @@ export default function VideoPanel({
           ref={remoteRef}
           autoPlay
           playsInline
-          className="absolute inset-0 h-full w-full bg-zinc-900 object-cover"
+          className="absolute inset-0 h-full w-full bg-surface object-cover"
         />
         {!remoteStream && (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
+          <div className="absolute inset-0 flex items-center justify-center text-muted">
             Waiting for stranger&rsquo;s video…
           </div>
         )}
@@ -47,13 +47,13 @@ export default function VideoPanel({
           autoPlay
           playsInline
           muted
-          className="absolute bottom-4 right-4 h-40 w-28 rounded-lg border border-zinc-700 bg-zinc-800 object-cover"
+          className="absolute bottom-4 right-4 h-40 w-28 rounded-lg border border-line-strong bg-raised object-cover"
         />
       </div>
-      <div className="flex justify-center bg-zinc-950 p-4">
+      <div className="flex justify-center bg-background p-4">
         <button
           onClick={onEnd}
-          className="rounded-full bg-red-500 px-8 py-3 font-semibold text-white hover:bg-red-400"
+          className="rounded-full bg-danger px-8 py-3 font-semibold text-white hover:bg-danger-hover"
         >
           End video
         </button>
