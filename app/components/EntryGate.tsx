@@ -3,9 +3,11 @@
 import { useState } from "react";
 
 export default function EntryGate({
+  onEnter,
   onReady,
   leaving,
 }: {
+  onEnter: () => void;
   onReady: (lat: number, lng: number) => Promise<void>;
   leaving: boolean;
 }) {
@@ -13,6 +15,7 @@ export default function EntryGate({
   const [error, setError] = useState<string>("");
 
   function enter() {
+    onEnter();
     if (!("geolocation" in navigator)) {
       setStatus("error");
       setError("Your browser doesn't support location access.");

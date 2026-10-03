@@ -16,6 +16,7 @@ import {
   type PeerControl,
 } from "@/lib/webrtc";
 import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
+import { useRequestAlert } from "@/lib/use-request-alert";
 import { type PeerDot, type SignalMsg, type SignalType } from "@/lib/types";
 
 type Conn =
@@ -66,6 +67,7 @@ export default function Home() {
   };
 
   const peerRef = useRef<PeerSession | null>(null);
+  const requestAlert = useRequestAlert();
   const msgId = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [strangerTyping, setStrangerTyping] = useState(false);
@@ -145,7 +147,10 @@ export default function Home() {
     const ps = peerRef.current;
     switch (ctrl) {
       case "video-request":
-        if (videoRef.current === "none") setVideo("incoming");
+        if (videoRef.current === "none") {
+          setVideo("incoming");
+          requestAlert.play();
+        }
         break;
       case "video-accept":
         if (videoRef.current === "requesting" && ps) {
@@ -276,6 +281,7 @@ export default function Home() {
       case "request": {
         if (connRef.current.kind === "idle") {
           setConn({ kind: "incoming", peerId: sig.fromId });
+          requestAlert.play();
         } else {
           signal(sig.fromId, "decline");
         }
@@ -413,7 +419,11 @@ export default function Home() {
       />
 
       {phase === "gate" && (
-        <EntryGate onReady={handleReady} leaving={myLocation !== null} />
+        <EntryGate
+          onEnter={requestAlert.unlock}
+          onReady={handleReady}
+          leaving={myLocation !== null}
+        />
       )}
 
       {!inChat && hasStatus && (
