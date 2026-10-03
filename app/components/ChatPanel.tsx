@@ -12,7 +12,9 @@ export default function ChatPanel({
   messages,
   connected,
   videoBusy,
+  strangerTyping,
   onSend,
+  onTyping,
   onStartVideo,
   onEnd,
   status,
@@ -20,7 +22,9 @@ export default function ChatPanel({
   messages: ChatMessage[];
   connected: boolean;
   videoBusy: boolean;
+  strangerTyping: boolean;
   onSend: (text: string) => void;
+  onTyping: () => void;
   onStartVideo: () => void;
   onEnd: () => void;
   status?: ReactNode;
@@ -30,7 +34,7 @@ export default function ChatPanel({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, strangerTyping]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,6 +124,16 @@ export default function ChatPanel({
               </span>
             </div>
           ))}
+          {strangerTyping && (
+            <div role="status" className="flex items-center gap-2">
+              <span className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-raised px-3.5 py-3">
+                <span className="size-1.5 rounded-full bg-muted motion-safe:animate-bounce" />
+                <span className="size-1.5 rounded-full bg-muted motion-safe:animate-bounce motion-safe:[animation-delay:150ms]" />
+                <span className="size-1.5 rounded-full bg-muted motion-safe:animate-bounce motion-safe:[animation-delay:300ms]" />
+              </span>
+              <span className="text-xs text-muted">Stranger is typing</span>
+            </div>
+          )}
           <div ref={endRef} />
         </div>
       </div>
@@ -130,7 +144,10 @@ export default function ChatPanel({
       >
         <input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (e.target.value.trim()) onTyping();
+          }}
           placeholder={connected ? "Type a message…" : "Connecting…"}
           disabled={!connected}
           aria-label="Message"

@@ -11,12 +11,15 @@ export type PeerControl =
 interface PeerCallbacks {
   onSignal: (type: DescType, payload: string) => void;
   onChat: (text: string) => void;
+  onTyping: () => void;
   onControl: (ctrl: PeerControl) => void;
   onRemoteStream: (stream: MediaStream | null) => void;
   onConnectionState: (state: RTCPeerConnectionState) => void;
   onChannelOpen: () => void;
   onChannelClose: () => void;
 }
+
+const TYPING_SEND_INTERVAL_MS = 3_000;
 
 const ICE_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -33,6 +36,7 @@ export class PeerSession {
   private closed = false;
   private readonly cb: PeerCallbacks;
   private pendingCandidates: RTCIceCandidateInit[] = [];
+  private lastTypingAt = 0;
 
   constructor(initiator: boolean, cb: PeerCallbacks) {
     this.cb = cb;
@@ -93,6 +97,8 @@ export class PeerSession {
         const msg = JSON.parse(e.data as string);
         if (msg.t === "chat" && typeof msg.text === "string") {
           this.cb.onChat(msg.text);
+        } else if (msg.t === "typing") {
+          this.cb.onTyping();
         } else if (msg.t === "ctrl" && typeof msg.ctrl === "string") {
           this.cb.onControl(msg.ctrl as PeerControl);
         }
@@ -149,6 +155,16 @@ export class PeerSession {
 
   sendChat(text: string) {
     this.safeSend({ t: "chat", text });
+    // The receiver hides the indicator on each message, so the next
+    // keystroke should be able to show it again at once.
+    this.lastTypingAt = 0;
+  }
+
+  sendTyping() {
+    const now = Date.now();
+    if (now - this.lastTypingAt < TYPING_SEND_INTERVAL_MS) return;
+    this.lastTypingAt = now;
+    this.safeSend({ t: "typing" });
   }
 
   sendControl(ctrl: PeerControl) {

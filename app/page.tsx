@@ -28,6 +28,7 @@ type Conn =
 type VideoState = "none" | "requesting" | "incoming" | "active";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const TYPING_TIMEOUT_MS = 5_000;
 const MEDIA_ON: MediaFlags = { mic: true, camera: true };
 
 export default function Home() {
@@ -67,6 +68,8 @@ export default function Home() {
   const peerRef = useRef<PeerSession | null>(null);
   const msgId = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [strangerTyping, setStrangerTyping] = useState(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showNotice(text: string) {
     setNotice(text);
@@ -81,8 +84,17 @@ export default function Home() {
     setMessages((prev) => [...prev, { id: msgId.current++, mine, text }]);
   }
 
+  function showTyping(on: boolean) {
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    setStrangerTyping(on);
+    if (on) {
+      typingTimer.current = setTimeout(() => setStrangerTyping(false), TYPING_TIMEOUT_MS);
+    }
+  }
+
   function teardown(message?: string) {
     if (requestTimer.current) clearTimeout(requestTimer.current);
+    showTyping(false);
     peerRef.current?.close();
     peerRef.current = null;
     setLocalStream(null);
@@ -98,7 +110,11 @@ export default function Home() {
       onSignal: (type: DescType, payload: string) => {
         signal(peerId, type, payload);
       },
-      onChat: (text) => addMessage(false, text),
+      onChat: (text) => {
+        showTyping(false);
+        addMessage(false, text);
+      },
+      onTyping: () => showTyping(true),
       onControl: (ctrl) => handleControl(ctrl),
       onRemoteStream: (stream) => setRemoteStream(stream),
       onConnectionState: (state) => {
@@ -423,6 +439,8 @@ export default function Home() {
           messages={messages}
           connected={conn.kind === "connected"}
           videoBusy={video !== "none"}
+          strangerTyping={strangerTyping}
+          onTyping={() => peerRef.current?.sendTyping()}
           onSend={(text) => {
             peerRef.current?.sendChat(text);
             addMessage(true, text);
