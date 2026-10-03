@@ -29,3 +29,14 @@
 - Found: traced while fixing D2. `sendChat` tagged messages `t: "msg"`, but
   the data channel handler only reads `t: "chat"`, so they were dropped.
 - Fixed: `sendChat` in `lib/webrtc.ts` now sends `t: "chat"`.
+
+### D4 - A closed tab strands the other peer
+
+- Broken: when one user closed the tab mid-chat, the other stayed on a dead
+  chat panel and stayed `busy`, so every new request to them was declined.
+- Found: reproduced in the browser with three tabs (connect A and B, close B,
+  request A from C). The server cannot tell A, because it has no record of who
+  is connected to whom.
+- Fixed: `PeerSession` now reports a data channel closed by the remote side,
+  and the page ends the connection on that or on a failed connection, sending
+  `end` so the D1 path clears `busy`.

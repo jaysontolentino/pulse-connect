@@ -81,6 +81,32 @@ mock geolocation set in DevTools, Sensors. Keep the Network tab on
   - Video request and accept still work (control messages are unaffected).
   - `npm run build` and `npm run lint` pass clean.
 
+### D4 - A closed tab strands the other peer
+
+- Status: fixed on `fix/peer-drop-ends-connection`
+- Where: `lib/webrtc.ts` (`wireDataChannel`), `app/page.tsx` (`startPeer`)
+- Symptom: A and B are connected and B closes the tab. A's chat panel stays
+  open on a dead connection. A stays `busy`, so a new tab C that requests A
+  is declined at once, A never sees a prompt, and A's dot stays dimmed.
+- Cause: the server has no record of who is connected to whom, so B's
+  `/api/leave` only removes B's own row and signals. Nothing sends A an `end`.
+  A's client only reacts to `connectionState === "failed"`, which can take
+  about 30 seconds or never come, and even then it tears down locally without
+  sending `end`, so A's `busy` flag is never cleared.
+- Reproduced in the browser with three tabs: connect A and B, close B, watch
+  A for 30 seconds, then request A from C.
+- Fix: the surviving peer ends the connection itself. `PeerSession` reports
+  when the data channel closes, unless the session closed it, and the page
+  treats that the same as a failed connection. Both paths now send `end` before
+  tearing down, which clears `busy` through the D1 path. This also covers
+  crashes and network loss, where no leave beacon is sent.
+- Done when:
+  - Closing B while connected returns A to the map within a few seconds with
+    "Stranger disconnected."
+  - C can then request A, A sees the prompt, and A's dot is at full opacity.
+  - Pressing End still ends cleanly for both sides, and D1 to D3 still pass.
+  - `npm run build` and `npm run lint` pass clean.
+
 ## Out of scope
 
 Styling, security hardening, and new features. Those are Phases 2, 3, and 4.
