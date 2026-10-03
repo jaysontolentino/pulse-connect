@@ -66,6 +66,21 @@ mock geolocation set in DevTools, Sensors. Keep the Network tab on
   - The connection holds after End and a fresh request (D1 still passes).
   - `npm run build` and `npm run lint` pass clean.
 
+### D3 - Sent chat messages never reach the other user
+
+- Status: fixed on `fix/chat-message-type`
+- Where: `lib/webrtc.ts:132`
+- Symptom: once connected, the sender sees their own message, but it never
+  appears in the other user's panel. No error is shown on either side.
+- Cause: `sendChat` sends `{ t: "msg", text }`, while the data channel
+  handler only accepts `t === "chat"`. Every chat message falls through both
+  branches and is silently dropped.
+- Fix: send chat messages with `t: "chat"`, the type the receiver expects.
+- Done when:
+  - A and B exchange messages and each sees the other's text in real time.
+  - Video request and accept still work (control messages are unaffected).
+  - `npm run build` and `npm run lint` pass clean.
+
 ## Out of scope
 
 Styling, security hardening, and new features. Those are Phases 2, 3, and 4.
