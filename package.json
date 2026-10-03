@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate && next build",
+    "build": "npx prisma generate && npm run migrate:production && next build",
+    "migrate:production": "if [ \"$VERCEL_ENV\" = production ]; then [ -n \"$DIRECT_URL\" ] || { echo 'DIRECT_URL must be set for production migrations'; exit 1; }; npx prisma migrate deploy; fi",
     "start": "next start",
     "lint": "eslint"
   },

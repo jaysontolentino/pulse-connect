@@ -16,6 +16,9 @@ export default defineConfig({
     path: path.join("prisma", "migrations"),
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Migrations take a session-level advisory lock, which a transaction
+    // pooler can leave held on a pooled connection. Use the direct
+    // (non-pooler) connection when one is set.
+    url: process.env.DIRECT_URL ?? env("DATABASE_URL"),
   },
 });
