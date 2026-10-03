@@ -50,3 +50,13 @@
   The heartbeat in `app/api/poll/route.ts` updated `lastSeen` on every row.
 - Fixed: the heartbeat is scoped to the caller with `where: { id }`, so rows
   that stop polling go stale and are reaped.
+
+### D6 - Video call controls are pushed off screen
+
+- Broken: during a video call, resizing the window to fullscreen hid the End
+  video button and the local preview, so the call could not be ended.
+- Found: in the browser, video call between two tabs, then fullscreen. The
+  remote video's container is a flex item sized by the video's native
+  resolution, so it grew taller than the viewport and the bar was clipped.
+- Fixed: `VideoPanel` gives the container `min-h-0` and positions the remote
+  video absolutely, so the stream size no longer drives the layout.

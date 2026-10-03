@@ -128,6 +128,30 @@ mock geolocation set in DevTools, Sensors. Keep the Network tab on
   - D1 to D4 still pass.
   - `npm run build` and `npm run lint` pass clean.
 
+### D6 - Video call controls are pushed off screen
+
+- Status: fixed on `fix/video-panel-layout`
+- Where: `app/components/VideoPanel.tsx:31-37`
+- Symptom: during a video call, resizing the window (for example to
+  fullscreen) hides the End video button and the local picture-in-picture, so
+  the call cannot be ended from the video view.
+- Cause: the remote video sits in a `flex-1` container, and a flex item's
+  minimum height defaults to its content height. The `<video>` element's
+  content height is the stream's native resolution, so the container grows
+  taller than the viewport, pushing the End video bar below it and taking the
+  bottom-anchored local preview with it. `main` is `overflow-hidden`, so both
+  are clipped out of view.
+- Reproduced in the browser: start a video call between two tabs, then make
+  one window fullscreen.
+- Fix: give the container `min-h-0` and position the remote video absolutely
+  inside it, so the stream's size no longer drives the layout.
+- Done when:
+  - At any window size, including fullscreen and a narrow mobile width, the
+    remote video fills the space above the End video bar, and the bar and the
+    local preview stay visible.
+  - End video still returns both users to text chat.
+  - `npm run build` and `npm run lint` pass clean.
+
 ## Out of scope
 
 Styling, security hardening, and new features. Those are Phases 2, 3, and 4.

@@ -30,6 +30,8 @@ browser, and each is fixed before the next is added.
 
 - D5 - offline users are never removed from the map, because the poll
   heartbeat refreshed every presence row. Fixed.
+- D6 - video call controls are pushed off screen on large windows, because
+  the remote video's native size drove the panel layout. Fixed.
 
 Verification also surfaced two findings for Phase 3: unauthenticated polling
 exposes every user's coordinates, and `/api/leave` lets any caller remove any
@@ -49,3 +51,4 @@ user from the map.
 - 2026-10-03 - Fixed D4 (the surviving peer ends the connection when the
   channel closes or fails).
 - 2026-10-03 - Fixed D5 (poll heartbeat scoped to the caller).
+- 2026-10-03 - Fixed D6 (video panel no longer sized by the remote stream).

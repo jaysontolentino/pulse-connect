@@ -28,13 +28,13 @@ export default function VideoPanel({
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black">
-      <div className="relative flex-1">
+      <div className="relative min-h-0 flex-1">
         {/* Remote (full screen) */}
         <video
           ref={remoteRef}
           autoPlay
           playsInline
-          className="h-full w-full bg-zinc-900 object-cover"
+          className="absolute inset-0 h-full w-full bg-zinc-900 object-cover"
         />
         {!remoteStream && (
           <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
