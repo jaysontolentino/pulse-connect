@@ -9,7 +9,7 @@ import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
 import { join, leave, poll, sendSignal } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
-import { POLL_INTERVAL_MS } from "@/lib/presence";
+import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
 import { type PeerDot, type SignalMsg } from "@/lib/types";
 
 type Conn =
@@ -283,8 +283,11 @@ export default function Home() {
     processSignalRef.current = processSignal;
   });
 
+  // The gate polls too, so its globe shows who is online, but more slowly:
+  // every visitor polls there, including those who never enter.
   useEffect(() => {
-    if (phase !== "live" || !sessionId) return;
+    if (!sessionId) return;
+    const live = phase === "live";
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -293,9 +296,9 @@ export default function Home() {
         const data = await poll(sessionId);
         if (!active) return;
         setPeers(data.peers);
-        for (const s of data.signals) processSignalRef.current(s);
+        if (live) for (const s of data.signals) processSignalRef.current(s);
       } catch {}
-      if (active) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      if (active) timer = setTimeout(tick, live ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
     };
     tick();
 
@@ -322,10 +325,6 @@ export default function Home() {
     setPhase("live");
   }
 
-  if (phase === "gate") {
-    return <EntryGate onReady={handleReady} />;
-  }
-
   const inChat = conn.kind === "connecting" || conn.kind === "connected";
 
   const hasStatus = Boolean(notice) || conn.kind === "requesting" || video === "requesting";
@@ -349,8 +348,12 @@ export default function Home() {
         peers={peers}
         me={myLocation}
         onPeerClick={requestConnection}
-        canConnect={conn.kind === "idle"}
+        canConnect={phase === "live" && conn.kind === "idle"}
       />
+
+      {phase === "gate" && (
+        <EntryGate onReady={handleReady} leaving={myLocation !== null} />
+      )}
 
       {!inChat && hasStatus && (
         <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 flex justify-center px-4">

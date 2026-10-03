@@ -4,12 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Map as MapboxMap, Marker } from "mapbox-gl";
 import type { PeerDot } from "@/lib/types";
+import { attachGateLabels, setLabelVisibility, type GateLabels } from "@/lib/gate-labels";
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "pk.eyJ1IjoicHVsc2UtbWFwIiwiYSI6ImNrMDBkZW1vMDAwMDAwMDAifQ.AAAAAAAAAAAAAAAAAAAAAA";
 
-const START_ZOOM = 2.5;
 const ARRIVAL_ZOOM = 4;
-const ARRIVAL_MS = 2000;
+const ARRIVAL_MS = 3000;
+// Degrees of longitude the idle globe turns per second behind the entry gate.
+const SPIN_DEG_PER_SEC = 4;
+
+// At zoom 1.4 the globe spans about 60% of an 800 px viewport, leaving room
+// for the gate's text above and below it. Each zoom level doubles its size.
+function globeZoom(container: HTMLElement): number {
+  const side = Math.min(container.clientWidth, container.clientHeight);
+  return 1.4 + Math.log2(side / 800);
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 type ZoomBand = "far" | "mid" | "near" | "close";
 
@@ -44,15 +57,19 @@ export default function WorldMap({
   const markersRef = useRef<Map<string, Marker>>(new Map());
   const meMarkerRef = useRef<Marker | null>(null);
   const [ready, setReady] = useState(false);
-  const [band, setBand] = useState<ZoomBand>(zoomBand(me ? START_ZOOM : 1.4));
+  const [band, setBand] = useState<ZoomBand>("far");
+  const arrivedRef = useRef(false);
+  const gateLabelsRef = useRef<GateLabels | null>(null);
 
   // Marker click handlers are bound once, so read the live click handler +
   // connectability through refs (synced in an effect, never during render).
   const onPeerClickRef = useRef(onPeerClick);
   const canConnectRef = useRef(canConnect);
+  const peersRef = useRef(peers);
   useEffect(() => {
     onPeerClickRef.current = onPeerClick;
     canConnectRef.current = canConnect;
+    peersRef.current = peers;
   });
 
   // Initialise the map once.
@@ -68,10 +85,10 @@ export default function WorldMap({
       const map = new mapboxgl.Map({
         container: containerRef.current,
         style: "mapbox://styles/mapbox/dark-v11",
-        // Open partway down toward the user; the load handler eases the rest
-        // of the way in, as Radio Garden does.
-        center: me ? [me.lng, me.lat] : [0, 20],
-        zoom: me ? START_ZOOM : 1.4,
+        // Open on the whole globe behind the entry gate. Once the user's
+        // location arrives, the arrival effect flies down to them.
+        center: [0, 20],
+        zoom: globeZoom(containerRef.current),
         projection: "globe",
         attributionControl: true,
       });
@@ -88,12 +105,7 @@ export default function WorldMap({
       // the zoom crosses a band boundary.
       map.on("zoom", () => setBand(zoomBand(map.getZoom())));
       map.on("load", () => {
-        if (cancelled) return;
-        setReady(true);
-        if (!me) return;
-        // Without `essential`, Mapbox jumps instead when reduced motion is set,
-        // and any drag or scroll cancels the glide.
-        map.easeTo({ zoom: ARRIVAL_ZOOM, duration: ARRIVAL_MS, easing: easeOutCubic });
+        if (!cancelled) setReady(true);
       });
       mapRef.current = map;
     })();
@@ -108,9 +120,73 @@ export default function WorldMap({
       mapRef.current = null;
       setReady(false);
     };
-    // `me` is only read for the opening view; we don't want to re-init on change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Turn the globe slowly until the user enters.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || me || prefersReducedMotion()) return;
+
+    // Chain one-second linear eases, so the spin never stalls between steps.
+    const spin = () => {
+      const center = map.getCenter();
+      center.lng -= SPIN_DEG_PER_SEC;
+      map.easeTo({ center, duration: 1000, easing: (t) => t });
+    };
+    map.on("moveend", spin);
+    spin();
+
+    return () => {
+      map.off("moveend", spin);
+      map.stop();
+    };
+  }, [ready, me]);
+
+  // Behind the entry gate, label only the countries that hold a dot. Bring
+  // every label back once the flight to the user ends (or is interrupted).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+
+    if (!me) {
+      let labels: GateLabels | null = null;
+      let cancelled = false;
+      (async () => {
+        const { Marker } = (await import("mapbox-gl")).default;
+        if (cancelled) return;
+        labels = attachGateLabels(map, () => peersRef.current, Marker);
+        gateLabelsRef.current = labels;
+      })();
+      return () => {
+        cancelled = true;
+        gateLabelsRef.current = null;
+        labels?.detach();
+      };
+    }
+    const showLabels = () => setLabelVisibility(map, "visible");
+    map.once("moveend", showLabels);
+    return () => {
+      map.off("moveend", showLabels);
+    };
+  }, [ready, me]);
+
+  useEffect(() => {
+    gateLabelsRef.current?.refresh();
+  }, [peers]);
+
+  // Fly from the globe down to the user once, when their location arrives.
+  // Without `essential`, Mapbox jumps instead under reduced motion.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !me || arrivedRef.current) return;
+    arrivedRef.current = true;
+    map.flyTo({
+      center: [me.lng, me.lat],
+      zoom: ARRIVAL_ZOOM,
+      duration: ARRIVAL_MS,
+      easing: easeOutCubic,
+    });
+  }, [ready, me]);
 
   // Show / move the user's own "you are here" pin.
   useEffect(() => {
@@ -199,10 +275,12 @@ export default function WorldMap({
         </div>
       )}
 
-      <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+1rem)] flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-lg backdrop-blur">
-        <span className="size-2 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
-        {peers.length} online
-      </div>
+      {me && (
+        <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+1rem)] flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-lg backdrop-blur">
+          <span className="size-2 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
+          {peers.length} online
+        </div>
+      )}
     </div>
   );
 }

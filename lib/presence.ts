@@ -8,3 +8,6 @@ export const SIGNAL_TTL_MS = 60_000;
 
 // Client poll interval. Kept here so client + server reason about the same cadence.
 export const POLL_INTERVAL_MS = 1_500;
+
+// Slower poll for the entry gate's preview globe, where every visitor polls.
+export const GATE_POLL_INTERVAL_MS = 5_000;
