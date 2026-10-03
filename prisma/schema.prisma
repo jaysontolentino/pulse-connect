@@ -21,6 +21,12 @@ model Presence {
   requestedId String? // the session this one has a pending request to
   lastSeen    DateTime
 
+  // Fixed one-minute rate-limit windows (lib/rate-limit.ts).
+  signalWindowAt  DateTime?
+  signalCount     Int       @default(0)
+  requestWindowAt DateTime?
+  requestCount    Int       @default(0)
+
   @@index([lastSeen])
 }
 
