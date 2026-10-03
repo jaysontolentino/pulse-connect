@@ -27,55 +27,120 @@ body {
   color: var(--color-foreground);
 }
 
-/* Live user dots on the map */
+/* Mapbox positions markers with an inline transform and fades occluded ones
+   with an inline opacity, so the visuals live on inner elements. */
+.pulse-map {
+  --dot-size: 10px;
+  --me-size: 14px;
+}
+
+.pulse-map[data-zoom="far"] {
+  --dot-size: 6px;
+  --me-size: 10px;
+}
+
+.pulse-map[data-zoom="near"] {
+  --dot-size: 14px;
+  --me-size: 18px;
+}
+
+.pulse-map[data-zoom="close"] {
+  --dot-size: 18px;
+  --me-size: 22px;
+}
+
 .pulse-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 9999px;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  box-shadow: 0 0 0 rgba(255, 255, 255, 0.5);
-  animation: pulse-ring 2s ease-out infinite;
-  transition: transform 0.1s ease;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
 
-.pulse-dot:hover {
-  transform: scale(1.3);
+.pulse-dot-core {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: 9999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--color-accent) 60%, transparent);
+  animation: pulse-breathe 2.4s ease-in-out infinite;
+  transition:
+    scale 0.15s ease,
+    width 0.3s ease,
+    height 0.3s ease;
 }
 
-/* The user's own "you are here" pin — small, sized like the dots. */
+.pulse-dot:hover .pulse-dot-core,
+.pulse-dot:focus-visible .pulse-dot-core {
+  scale: 1.5;
+}
+
+.pulse-dot:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
+.pulse-dot-busy {
+  cursor: default;
+}
+
+.pulse-dot-busy .pulse-dot-core {
+  background: var(--color-muted);
+  box-shadow: none;
+  opacity: 0.7;
+  animation: none;
+}
+
 .pulse-me {
   position: relative;
-  font-size: 18px;
-  line-height: 1;
-  cursor: default;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  width: var(--me-size);
+  height: var(--me-size);
+  border-radius: 9999px;
+  background: var(--color-accent);
+  border: calc(var(--me-size) / 5) solid var(--color-foreground);
+  transition:
+    width 0.3s ease,
+    height 0.3s ease;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-accent) 35%, transparent),
+    0 0 14px 4px color-mix(in srgb, var(--color-accent) 50%, transparent);
+  /* Never block a click on a stranger's dot that sits underneath. */
+  pointer-events: none;
 }
 
 .pulse-me-label {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 1px;
   font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 0 5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  padding: 1px 6px;
   border-radius: 9999px;
   white-space: nowrap;
 }
 
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
-  }
-  70% {
-    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
-  }
+@keyframes pulse-breathe {
+  0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 16px 5px color-mix(in srgb, var(--color-accent) 70%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot-core,
+  .pulse-me {
+    animation: none;
+    transition: none;
   }
 }

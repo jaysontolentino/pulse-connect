@@ -76,3 +76,31 @@
   background, where red-600 is too dim.
 - Checked: in the browser at 1280 px and 390 px, the entry gate, map,
   requesting pill, and chat panel on both sides of a live connection.
+
+### S2 - Map and dots
+
+- Changed: the map uses the Mapbox `globe` projection with fog and stars
+  colored from the palette tokens. Every dot is an accent-colored core with a
+  breathing glow, and busy dots are grey, dimmed, and still. The 📍 emoji is
+  replaced by a CSS "You" marker, and the online count is a pill at the top
+  left, clear of the Mapbox logo.
+- Gotcha: Mapbox positions a marker with an inline `transform` and fades
+  occluded globe markers with an inline `opacity`. The old hover `scale` and
+  busy `opacity` on the marker element either never applied or fought with
+  that, so the visuals now live on an inner `.pulse-dot-core`.
+- Decision: the "You" marker ignores pointer events, because its label can
+  sit on top of a nearby stranger's dot and swallow the click.
+- Decision: the map opens at zoom 2.5 on the user and eases to zoom 4 over
+  2 s with an ease-out curve, as Radio Garden does. An earlier version opened
+  on the whole globe first, which felt slow. `easeTo` is not marked
+  `essential`, so Mapbox jumps instead under reduced motion, and any drag or
+  scroll cancels the glide.
+- Decision: dot size follows the zoom in four bands (far below 3, mid below
+  6, near below 10, close beyond), set as `data-zoom` on the map wrapper and
+  read by CSS variables. Bands rather than a continuous scale mean React only
+  re-renders when a boundary is crossed, and no inline styles are needed.
+  Dots are 6, 10, 14, and 18 px, the "You" marker 4 px larger, and the size
+  eases between bands. The 28 px hit area stays fixed at every zoom.
+- Checked: in the browser with three and four sessions, at world zoom (globe)
+  and city zoom, at 1280 px and 390 px, with a busy pair visible to a third
+  user, and with `prefers-reduced-motion` (no animation).

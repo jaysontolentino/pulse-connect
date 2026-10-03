@@ -88,9 +88,13 @@ committed.
 
 - Use the Mapbox `globe` projection on a dark, low-contrast style, so the
   world view reads as a globe as it does on Radio Garden.
+- Open partway down toward the user and ease the rest of the way into their
+  region, as Radio Garden does. Reduced motion jumps there instead.
 - Every dot uses the accent color with a soft glow and a slow breathing pulse.
   Busy dots are dimmed and do not pulse. This replaces the random hues and the
   inline style with CSS classes.
+- Dots and the "you" marker grow as the user zooms in and shrink as they zoom
+  out, so the globe view stays uncluttered and street level stays tappable.
 - Replace the 📍 emoji with a CSS "you" marker in the same visual language:
   a solid accent dot with a ring and a small "You" label.
 - Restyle the online count chip to match the floating panels.
