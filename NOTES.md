@@ -184,3 +184,19 @@
   (no frames), and in half the runs the requesting side never received a
   remote stream. This is in the WebRTC video path, not the panel, and is out
   of scope for Phase 2.
+
+### S7 - Entry gate
+
+- Changed: the gate is a transparent overlay on the live map. A slowly
+  spinning globe shows who is online (not tappable), labelled only with their
+  countries. On Enter the gate fades and the globe flies to the user. This
+  replaces S2's opening.
+- Decision: the gate polls every 5 s instead of 1.5 s, since every visitor
+  polls there. Country names are HTML markers placed from Mapbox's
+  `country-boundaries-v1` tileset, with overlapping labels hidden.
+- Gotcha: the style's own country labels show nothing on a phone, because
+  the tiles at that zoom carry no country names.
+- Note for Phase 3: the gate reads every online user's offset coordinates
+  before joining, so any `/api/poll` fix must keep a view-only path.
+- Checked: at 1280 px and 390 px: spin, labels, fly-in, reduced motion,
+  denied location, and two sessions connecting.

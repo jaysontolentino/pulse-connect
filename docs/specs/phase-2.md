@@ -88,8 +88,9 @@ committed.
 
 - Use the Mapbox `globe` projection on a dark, low-contrast style, so the
   world view reads as a globe as it does on Radio Garden.
-- Open partway down toward the user and ease the rest of the way into their
-  region, as Radio Garden does. Reduced motion jumps there instead.
+- Fly from the globe down to the user's region when they enter, as Radio
+  Garden does (the opening itself is part of S7). Reduced motion jumps there
+  instead.
 - Every dot uses the accent color with a soft glow and a slow breathing pulse.
   Busy dots are dimmed and do not pulse. This replaces the random hues and the
   inline style with CSS classes.
@@ -149,9 +150,12 @@ committed.
 
 ### S7 - Entry gate
 
-- Restyle `EntryGate` as the first impression of the globe: the Pulse
-  wordmark, the one-line pitch, and a single accent "Enter" button over a dark
-  background in the same palette.
+- Restyle `EntryGate` as a transparent overlay on the live map: a slowly
+  spinning globe showing who is online (not tappable), labelled only with
+  the countries those people are in, behind the
+  Pulse wordmark, the one-line pitch, and a single
+  accent "Enter" button. When the location arrives, the gate fades out and
+  the same globe flies down to the user, with no cut between gate and map.
 - Done when:
   - The location-denied error and the privacy note are styled with the
     palette tokens.
