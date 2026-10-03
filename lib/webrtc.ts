@@ -1,9 +1,12 @@
 export type DescType = "offer" | "answer" | "ice";
+export type MediaKind = "mic" | "camera";
+export type MediaFlags = Record<MediaKind, boolean>;
 export type PeerControl =
   | "video-request"
   | "video-accept"
   | "video-decline"
-  | "video-end";
+  | "video-end"
+  | `${MediaKind}-${"on" | "off"}`;
 
 interface PeerCallbacks {
   onSignal: (type: DescType, payload: string) => void;
@@ -169,6 +172,16 @@ export class PeerSession {
       }
     }
     return this.localStream;
+  }
+
+  // A disabled track keeps its slot and sends silence or black frames, so
+  // toggling never renegotiates.
+  setMediaEnabled(kind: MediaKind, enabled: boolean) {
+    const tracks =
+      kind === "mic"
+        ? this.localStream?.getAudioTracks()
+        : this.localStream?.getVideoTracks();
+    for (const track of tracks ?? []) track.enabled = enabled;
   }
 
   stopVideo() {

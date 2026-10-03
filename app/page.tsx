@@ -8,7 +8,13 @@ import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
 import { gateDots, join, leave, poll, sendSignal } from "@/lib/api";
-import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
+import {
+  PeerSession,
+  type DescType,
+  type MediaFlags,
+  type MediaKind,
+  type PeerControl,
+} from "@/lib/webrtc";
 import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
 import { type PeerDot, type SignalMsg, type SignalType } from "@/lib/types";
 
@@ -22,6 +28,7 @@ type Conn =
 type VideoState = "none" | "requesting" | "incoming" | "active";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const MEDIA_ON: MediaFlags = { mic: true, camera: true };
 
 export default function Home() {
   const [phase, setPhase] = useState<"gate" | "live">("gate");
@@ -44,9 +51,17 @@ export default function Home() {
 
   const [video, _setVideo] = useState<VideoState>("none");
   const videoRef = useRef<VideoState>(video);
+  const [localMedia, setLocalMedia] = useState<MediaFlags>(MEDIA_ON);
+  const [remoteMedia, setRemoteMedia] = useState<MediaFlags>(MEDIA_ON);
   const setVideo = (v: VideoState) => {
     videoRef.current = v;
     _setVideo(v);
+    // The stranger may toggle before our video is active, so remote flags
+    // are only reset when a video ends, never when one starts.
+    if (v === "none") {
+      setLocalMedia(MEDIA_ON);
+      setRemoteMedia(MEDIA_ON);
+    }
   };
 
   const peerRef = useRef<PeerSession | null>(null);
@@ -141,6 +156,14 @@ export default function Home() {
         setLocalStream(null);
         setVideo("none");
         break;
+      case "mic-on":
+      case "mic-off":
+        setRemoteMedia((m) => ({ ...m, mic: ctrl === "mic-on" }));
+        break;
+      case "camera-on":
+      case "camera-off":
+        setRemoteMedia((m) => ({ ...m, camera: ctrl === "camera-on" }));
+        break;
     }
   }
 
@@ -221,6 +244,15 @@ export default function Home() {
     ps?.sendControl("video-end");
     setLocalStream(null);
     setVideo("none");
+  }
+
+  function toggleMedia(kind: MediaKind) {
+    const ps = peerRef.current;
+    if (!ps) return;
+    const on = !localMedia[kind];
+    ps.setMediaEnabled(kind, on);
+    ps.sendControl(`${kind}-${on ? "on" : "off"}` as const);
+    setLocalMedia((m) => ({ ...m, [kind]: on }));
   }
 
   function processSignal(sig: SignalMsg) {
@@ -417,6 +449,9 @@ export default function Home() {
         <VideoPanel
           localStream={localStream}
           remoteStream={remoteStream}
+          localMedia={localMedia}
+          remoteMedia={remoteMedia}
+          onToggleMedia={toggleMedia}
           onEnd={endVideo}
         />
       )}
