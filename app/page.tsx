@@ -36,6 +36,10 @@ export default function Home() {
   const [phase, setPhase] = useState<"gate" | "live">("gate");
   const [token, setToken] = useState<string | null>(null);
   const [peers, setPeers] = useState<PeerDot[]>([]);
+  // Gate dots are keyed by position, not session id, and stay on the map
+  // until the first poll with the token replaces them. Tapping one would
+  // request a session that does not exist.
+  const [peersHaveIds, setPeersHaveIds] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -352,6 +356,7 @@ export default function Home() {
           const data = await poll(token);
           if (!active) return;
           setPeers(data.peers);
+          setPeersHaveIds(true);
           for (const s of data.signals) processSignalRef.current(s);
         } else {
           const dots = await gateDots();
@@ -415,7 +420,7 @@ export default function Home() {
         peers={peers}
         me={myLocation}
         onPeerClick={requestConnection}
-        canConnect={phase === "live" && conn.kind === "idle"}
+        canConnect={phase === "live" && peersHaveIds && conn.kind === "idle"}
       />
 
       {phase === "gate" && (

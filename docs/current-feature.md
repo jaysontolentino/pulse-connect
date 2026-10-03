@@ -22,6 +22,7 @@ Items, in order, each on its own branch:
 - V2 - Video call controls (mute, camera off)
 - C1 - Typing indicator
 - A1 - Incoming request alert (tone and vibration)
+- B1 - Gate dots tappable right after joining (found while testing A1)
 
 Phase 3 is complete: [docs/specs/phase-3.md](specs/phase-3.md).
 
