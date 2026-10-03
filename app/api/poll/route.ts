@@ -2,19 +2,19 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { STALE_MS, SIGNAL_TTL_MS } from "@/lib/presence";
 import type { PollResponse } from "@/lib/types";
+import { bearerToken, sessionIdForToken } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/poll?id= — the single endpoint that drives the live map.
-// It (1) heartbeats the caller, (2) reaps stale presence + orphan signals,
-// (3) returns the filtered online peers, and (4) drains this user's mailbox.
+// GET /api/poll - bearer token. The single endpoint that drives the live map:
+// it (1) heartbeats the caller, (2) reaps stale presence + orphan signals,
+// (3) returns the online peers, and (4) drains the caller's mailbox. The entry
+// gate, which has no token, reads /api/dots instead.
 export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
-  const id = params.get("id");
-
+  const id = await sessionIdForToken(bearerToken(request));
   if (!id) {
-    return Response.json({ error: "missing id" }, { status: 400 });
+    return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const now = Date.now();

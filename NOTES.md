@@ -200,3 +200,125 @@
   before joining, so any `/api/poll` fix must keep a view-only path.
 - Checked: at 1280 px and 390 px: spin, labels, fly-in, reduced motion,
   denied location, and two sessions connecting.
+
+## Phase 3
+
+### H1 - Server-issued session tokens
+
+- Changed: `join` creates the public id and a random 32-byte token on the
+  server, stores only the token's SHA-256 hash, and returns the token.
+  `poll` and `signal` identify the caller by `Authorization: Bearer`, and
+  `leave` by the token in its beacon body. `signal` takes the sender from the
+  token only. A poll with no token (the entry gate) returns peers and nothing
+  else. The page keeps the token instead of a client-made id, and the gate
+  shows an error if joining fails.
+- Decision: the migration clears `Presence` and `Signal` before adding the
+  required `tokenHash` column. Both hold only transient rows, and existing
+  rows have no token.
+- Gotcha: the database had been created with `db push`, so the initial
+  migration was never recorded. A diff against the pre-H1 schema was empty,
+  so it was baselined with `migrate resolve --applied`, with no changes.
+- Gotcha: `migrate dev` over the Neon pooler left Prisma's advisory lock held
+  on a pooled connection, and every later migration timed out. Cleared from
+  the Neon console. Run migrations over the direct (non-pooler) host.
+- Decision: local development now uses a Neon `dev` branch. The original
+  database is production, and the H1 migration is applied there only at
+  deploy time.
+- Checked: against the `dev` branch, F2 to F5 no longer reproduce (anonymous
+  and forged-token polls get no mail, a body `fromId` is ignored, a join with
+  another id makes a new row, a leave without the token is a 401). In the
+  browser: the gate shows dots, two sessions connect, chat, and end, and a
+  closed tab leaves the map in about 3 s.
+
+### H2 - Server-side pairing for signals
+
+- Changed: presence rows record `requestedId` (a pending outgoing request)
+  and `peerId` (the accepted pairing). `lib/pairing.ts` decides each signal:
+  `request` to an online, idle user (busy or offline still auto-declines),
+  `accept` and `decline` only from the requested user, `end` to the peer or
+  to one's own pending request, and `offer`, `answer`, `ice` only between
+  paired users. Anything else is a 409 and is not delivered.
+- Decision: `end` needs no target row, so a user whose peer already left can
+  still unpair and clear their own busy flag (the D4 path).
+- Decision: the other side's row is only changed while it still points at
+  the sender, so a late signal cannot undo a newer pairing.
+- Note: when one user ends a chat, the other's client also sends `end` as its
+  channel closes. That second `end` is now a harmless 409.
+- Checked: against the Neon `dev` branch, a stranger's `accept`, `end`,
+  `offer`, `ice`, and `decline` are all rejected, busy is only set by a real
+  accept, and end, cancel, and a peer leaving all free both users. In the
+  browser: decline, cancel, connect, chat, video, end, and reconnect all
+  work, and a closed tab frees the other user (about 15 s, the same as
+  before H2).
+
+### H3 - Validate every request with Zod
+
+- Changed: `lib/schemas.ts` holds a Zod schema for each input (join
+  coordinates, the leave token, the signal body with a UUID `toId`, one of
+  the seven signal types, and a payload of at most 64 KB), and `parseBody`
+  reads and validates a body. The hand-written checks (`isValidLatLng`,
+  `VALID_TYPES`, `MAX_PAYLOAD`) are gone. Adds `zod`.
+- Decision: `sessionForToken` checks the token's format first, so a malformed
+  token never reaches the database, and the signal route validates its body
+  before looking up the sender.
+- Decision: `parseBody` reads the body as text, because `sendBeacon` does not
+  send a JSON content type.
+- Checked: with the database address deliberately broken, every malformed
+  join, leave, signal, and poll returned 400 or 401 while valid ones reached
+  the database (500), so validation runs first. Against the Neon `dev`
+  branch, the full two-session browser flow still works.
+
+### H5 - A view-only feed for the entry gate
+
+- Changed: `GET /api/dots` returns online positions and busy flags with no
+  session ids, read-only and filtered by staleness. `/api/poll` now requires
+  a token. The gate reads `/api/dots`, and switches to the token poll once
+  the user joins.
+- Decision: the map keys markers by id, so gate dots are keyed by their
+  position (`lat,lng`) in `gateDots`. Positions are stable between polls, so
+  markers stay put.
+- Checked: no unauthenticated response (`/api/dots`, `/api/join`, a poll
+  without a token) contains a session id, and only token polls return ids.
+  In the browser, the gate calls only `/api/dots`, its dots and country
+  labels still show, and the full two-session flow still works.
+
+### H6 - Security headers
+
+- Changed: `next.config.ts` sends a Content-Security-Policy,
+  `Permissions-Policy` (camera, microphone, and geolocation for the app
+  only), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
+  and `X-Frame-Options: DENY` on every response.
+- Decision: the CSP has no nonces, as in the Next.js guide's "without nonces"
+  setup, because nonces force every page to render dynamically. Inline
+  scripts are allowed instead, and `'unsafe-eval'` only in development.
+  Mapbox needs its API, tile, and telemetry hosts in `connect-src`, and
+  `blob:` for its workers and images.
+- Note: CSP does not cover WebRTC. Calls use Google's public STUN server
+  (`lib/webrtc.ts`), which sees each peer's IP address while connecting.
+- Checked: all five headers on the page and API routes. A full browser run
+  (gate globe with country labels, connect, chat, video, end, reconnect)
+  had no CSP violations under `next start` or `next dev`.
+
+### H4 - Rate limits
+
+- Changed: `lib/rate-limit.ts` caps each session at 120 signals and 10
+  connection requests per minute, each recipient at 100 undelivered
+  messages, and each client address at 10 joins per minute. Over a limit the
+  route returns 429.
+- Decision: limits sit well above measured use. Two full sessions (connect,
+  chat, video on and off, end, twice) sent 14 signals per user in a minute,
+  at most 4 in a second. Real networks gather more ICE candidates.
+- Decision: session limits use fixed one-minute windows stored on the
+  presence row, counted in one `UPDATE ... RETURNING` so concurrent signals
+  cannot both slip under the limit, and gone when the session ends. Every
+  attempt counts, including ones the pairing rules reject.
+- Decision: joins have no session yet, so they are limited in memory per
+  server instance, keyed by the client address hashed with a per-instance
+  salt. On serverless this is best effort, and it trusts `x-forwarded-for`,
+  which Vercel sets itself.
+- Note: the mailbox cap counts then inserts, so heavy concurrency can overshoot
+  it by a few messages.
+- Checked: against the Neon `dev` branch, 200 parallel signals stopped at
+  exactly 120, the 11th request in a minute got 429, a mailbox stopped at 100
+  until drained, and the 11th join from one address got 429 while another
+  address still joined. The full two-session browser flow had no 429s.

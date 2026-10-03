@@ -12,11 +12,20 @@ datasource db {
 }
 
 model Presence {
-  id       String   @id // client-generated session uuid
-  lat      Float // ALREADY privacy-offset coords (raw is never stored)
-  lng      Float
-  busy     Boolean  @default(false) // true while in an active connection
-  lastSeen DateTime
+  id          String   @id // server-generated public session id
+  tokenHash   String   @unique // SHA-256 of the session's secret token
+  lat         Float // ALREADY privacy-offset coords (raw is never stored)
+  lng         Float
+  busy        Boolean  @default(false) // true while in an active connection
+  peerId      String? // the session this one is connected to
+  requestedId String? // the session this one has a pending request to
+  lastSeen    DateTime
+
+  // Fixed one-minute rate-limit windows (lib/rate-limit.ts).
+  signalWindowAt  DateTime?
+  signalCount     Int       @default(0)
+  requestWindowAt DateTime?
+  requestCount    Int       @default(0)
 
   @@index([lastSeen])
 }

@@ -1,6 +1,6 @@
 # Current Feature
 
-Phase 2 - Styling
+Phase 3 - Security hardening
 
 ## Status
 
@@ -8,30 +8,41 @@ Completed
 
 ## Goals
 
-Make Pulse look and feel like one deliberate product: a dark, living globe of
-glowing dots with quiet floating panels, following Radio Garden for the map
-and Azar for the request and call screens. Works on phone and desktop. No
-behavior changes.
+Nobody can act as another user, read their messages, or remove them from the
+map, and nobody can flood the coordination API. Pulse stays anonymous, with
+no accounts and no new external services.
 
-Full spec, design direction, references, and items: [docs/specs/phase-2.md](specs/phase-2.md)
+Full spec, findings, and items: [docs/specs/phase-3.md](specs/phase-3.md)
 
 ## Notes
 
-Items land one at a time, each on its own branch and checked in the browser
-at desktop and 390 px mobile width.
+All seven findings were reproduced with `curl` against the local app. They
+share one root cause: the client-chosen session id is public (every poll
+returns it) and is also the only credential.
 
-- S1 - Design tokens and typography
-- S2 - Map and dots
-- S3 - Floating status pills
-- S4 - Request prompts
-- S5 - Chat panel
-- S6 - Video call
-- S7 - Entry gate
+- F1 - Polling exposes every user's id to anyone
+- F2 - Anyone can read another user's mailbox
+- F3 - Anyone can send signals as anyone
+- F4 - Anyone can move another user's dot
+- F5 - Anyone can remove another user from the map
+- F6 - No rate limits
+- F7 - No security headers
 
-Phase 1 is complete: [docs/specs/phase-1.md](specs/phase-1.md). Its two
-security findings are carried to Phase 3. Features deferred from this phase,
-and the unreliable remote video found while testing S6, are kept in the
-Phase 4 backlog: [docs/specs/phase-4.md](specs/phase-4.md).
+All seven are closed:
+
+- H1 - server-issued session tokens (F2 to F5)
+- H2 - server-side pairing for signals (F3)
+- H3 - Zod validation on every route
+- H4 - rate limits (F6)
+- H5 - an id-free view of who is online for the entry gate (F1)
+- H6 - security headers (F7)
+
+Production gets the three Phase 3 migrations automatically on the next
+`dev` to `main` merge, which needs `DIRECT_URL` set in Vercel. That deploy
+logs everyone off the map once.
+
+Phase 2 is complete: [docs/specs/phase-2.md](specs/phase-2.md). The Phase 4
+backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
 
 ## History
 
@@ -53,3 +64,8 @@ Phase 4 backlog: [docs/specs/phase-4.md](specs/phase-4.md).
 - 2026-10-03 - Wrote the Phase 2 styling spec.
 - 2026-10-03 - Phase 2 completed (S1 to S7). Started the Phase 4 backlog,
   including the unreliable remote video found during S6.
+- 2026-10-03 - Verified the Phase 3 findings against the local API and wrote
+  the Phase 3 spec.
+- 2026-10-03 - Baselined the production database, moved local development to
+  a Neon `dev` branch, and made production builds apply migrations.
+- 2026-10-03 - Phase 3 completed (H1 to H6). All seven findings closed.

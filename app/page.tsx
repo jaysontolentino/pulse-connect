@@ -7,10 +7,10 @@ import ConnectionPrompt from "./components/ConnectionPrompt";
 import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
-import { join, leave, poll, sendSignal } from "@/lib/api";
+import { gateDots, join, leave, poll, sendSignal } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
 import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
-import { type PeerDot, type SignalMsg } from "@/lib/types";
+import { type PeerDot, type SignalMsg, type SignalType } from "@/lib/types";
 
 type Conn =
   | { kind: "idle" }
@@ -25,7 +25,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export default function Home() {
   const [phase, setPhase] = useState<"gate" | "live">("gate");
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [token, setToken] = useState<string | null>(null);
   const [peers, setPeers] = useState<PeerDot[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -58,6 +58,10 @@ export default function Home() {
     window.setTimeout(() => setNotice(null), 3500);
   }
 
+  function signal(toId: string, type: SignalType, payload?: string) {
+    if (token) void sendSignal(token, toId, type, payload);
+  }
+
   function addMessage(mine: boolean, text: string) {
     setMessages((prev) => [...prev, { id: msgId.current++, mine, text }]);
   }
@@ -77,7 +81,7 @@ export default function Home() {
   function startPeer(peerId: string, initiator: boolean) {
     const ps = new PeerSession(initiator, {
       onSignal: (type: DescType, payload: string) => {
-        void sendSignal(sessionId, peerId, type, payload);
+        signal(peerId, type, payload);
       },
       onChat: (text) => addMessage(false, text),
       onControl: (ctrl) => handleControl(ctrl),
@@ -101,7 +105,7 @@ export default function Home() {
     if (peerRef.current !== ps) return;
     const c = connRef.current;
     if (c.kind === "connecting" || c.kind === "connected") {
-      void sendSignal(sessionId, c.peerId, "end");
+      signal(c.peerId, "end");
     }
     teardown(message);
   }
@@ -144,13 +148,13 @@ export default function Home() {
   function requestConnection(peerId: string) {
     if (connRef.current.kind !== "idle") return;
     setConn({ kind: "requesting", peerId });
-    void sendSignal(sessionId, peerId, "request");
+    signal(peerId, "request");
     requestTimer.current = setTimeout(() => {
       if (
         connRef.current.kind === "requesting" &&
         connRef.current.peerId === peerId
       ) {
-        void sendSignal(sessionId, peerId, "end");
+        signal(peerId, "end");
         teardown("No answer.");
       }
     }, REQUEST_TIMEOUT_MS);
@@ -158,7 +162,7 @@ export default function Home() {
 
   function cancelRequest() {
     if (connRef.current.kind === "requesting") {
-      void sendSignal(sessionId, connRef.current.peerId, "end");
+      signal(connRef.current.peerId, "end");
     }
     teardown();
   }
@@ -167,20 +171,20 @@ export default function Home() {
     if (connRef.current.kind !== "incoming") return;
     const peerId = connRef.current.peerId;
     startPeer(peerId, false);
-    void sendSignal(sessionId, peerId, "accept");
+    signal(peerId, "accept");
     setConn({ kind: "connecting", peerId });
   }
 
   function declineIncoming() {
     if (connRef.current.kind !== "incoming") return;
-    void sendSignal(sessionId, connRef.current.peerId, "decline");
+    signal(connRef.current.peerId, "decline");
     setConn({ kind: "idle" });
   }
 
   function endConnection() {
     const c = connRef.current;
     if (c.kind === "connecting" || c.kind === "connected") {
-      void sendSignal(sessionId, c.peerId, "end");
+      signal(c.peerId, "end");
     }
     teardown();
   }
@@ -227,7 +231,7 @@ export default function Home() {
         if (connRef.current.kind === "idle") {
           setConn({ kind: "incoming", peerId: sig.fromId });
         } else {
-          void sendSignal(sessionId, sig.fromId, "decline");
+          signal(sig.fromId, "decline");
         }
         break;
       }
@@ -283,22 +287,28 @@ export default function Home() {
     processSignalRef.current = processSignal;
   });
 
-  // The gate polls too, so its globe shows who is online, but more slowly:
-  // every visitor polls there, including those who never enter.
+  // Before joining, the gate shows who is online from the id-free /api/dots,
+  // and more slowly: every visitor polls there, including those who never
+  // enter. Joined sessions poll with their token.
   useEffect(() => {
-    if (!sessionId) return;
-    const live = phase === "live";
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
       try {
-        const data = await poll(sessionId);
-        if (!active) return;
-        setPeers(data.peers);
-        if (live) for (const s of data.signals) processSignalRef.current(s);
+        if (token) {
+          const data = await poll(token);
+          if (!active) return;
+          setPeers(data.peers);
+          for (const s of data.signals) processSignalRef.current(s);
+        } else {
+          const dots = await gateDots();
+          if (active) setPeers(dots);
+        }
       } catch {}
-      if (active) timer = setTimeout(tick, live ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
+      if (active) {
+        timer = setTimeout(tick, token ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
+      }
     };
     tick();
 
@@ -306,23 +316,28 @@ export default function Home() {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [phase, sessionId]);
+  }, [token]);
 
   useEffect(() => {
-    if (!sessionId || phase !== "live") return;
-    const onLeave = () => leave(sessionId);
+    if (!token || phase !== "live") return;
+    const onLeave = () => leave(token);
     window.addEventListener("pagehide", onLeave);
     window.addEventListener("beforeunload", onLeave);
     return () => {
       window.removeEventListener("pagehide", onLeave);
       window.removeEventListener("beforeunload", onLeave);
     };
-  }, [sessionId, phase]);
+  }, [token, phase]);
 
   async function handleReady(lat: number, lng: number) {
     setMyLocation({ lat, lng });
-    await join(sessionId, lat, lng);
-    setPhase("live");
+    try {
+      setToken(await join(lat, lng));
+      setPhase("live");
+    } catch (err) {
+      setMyLocation(null);
+      throw err;
+    }
   }
 
   const inChat = conn.kind === "connecting" || conn.kind === "connected";

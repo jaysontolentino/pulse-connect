@@ -99,6 +99,10 @@ singleton lives in `lib/prisma.ts`.
   privacy-offset coordinates are stored.
 - `DATABASE_URL` must be a pooled connection string in production (Neon pooler
   or PgBouncer).
+- Migrations run over `DIRECT_URL`, the direct (non-pooler) connection. A
+  pooler can leave Prisma's migration lock held. Production builds on Vercel
+  run `prisma migrate deploy` automatically, and Preview deployments must use
+  the Neon `dev` branch, never production.
 - No interactive transactions (`prisma.$transaction(async tx => ...)`). They are
   unreliable over a pooler. Use independent statements, or the array form
   `$transaction([...])` when atomicity is genuinely required.
