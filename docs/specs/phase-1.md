@@ -47,6 +47,25 @@ mock geolocation set in DevTools, Sensors. Keep the Network tab on
   - Cancel while requesting, then request again, still works.
   - `npm run build` and `npm run lint` pass clean.
 
+### D2 - Accepted connections never leave "connecting"
+
+- Status: fixed on `fix/ice-candidate-flush`
+- Where: `lib/webrtc.ts:110-111`
+- Symptom: B accepts A's request, both chat panels open, but they stay in the
+  connecting state. No message can be sent and video cannot be started.
+- Cause: ICE candidates usually arrive in the same poll batch as the offer or
+  answer, before the remote description is applied, so they are queued.
+  `handleSignal` flushes that queue before calling `setRemoteDescription`, so
+  each `addIceCandidate` either throws (error swallowed) or the queue is empty
+  at flush time and is never flushed again. Neither peer receives the other's
+  candidates, ICE never pairs, and the data channel never opens.
+- Fix: apply the remote description first, then flush the queued candidates.
+- Done when:
+  - A requests, B accepts, and both panels move to connected within a few
+    seconds.
+  - The connection holds after End and a fresh request (D1 still passes).
+  - `npm run build` and `npm run lint` pass clean.
+
 ## Out of scope
 
 Styling, security hardening, and new features. Those are Phases 2, 3, and 4.
