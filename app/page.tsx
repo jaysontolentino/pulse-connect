@@ -360,7 +360,9 @@ export default function Home() {
 
       {conn.kind === "incoming" && (
         <ConnectionPrompt
+          icon="connect"
           title="A stranger wants to connect"
+          subtitle="Accept to start an anonymous chat."
           acceptLabel="Accept"
           declineLabel="Decline"
           onAccept={acceptIncoming}
@@ -385,6 +387,7 @@ export default function Home() {
 
       {video === "incoming" && (
         <ConnectionPrompt
+          icon="video"
           title="Start video call?"
           subtitle="The stranger wants to turn on video."
           acceptLabel="Accept"
