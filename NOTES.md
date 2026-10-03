@@ -162,3 +162,25 @@
   two-way conversation with a long sentence and a long unbroken URL, no
   horizontal overflow, and the newest message in view after 16 messages. The
   on-screen keyboard could not be exercised headless.
+
+### S6 - Video call
+
+- Changed: full-bleed remote video under a top-left "Stranger" chip, the
+  local preview as a rounded 3:4 tile in the top-right corner, and a floating
+  56 px End video button over a bottom gradient, padded by the bottom
+  safe-area inset. The waiting state has the same pulsing accent dot as the
+  status pills.
+- Decision: every layer is absolutely positioned inside the panel, so the D6
+  guarantee no longer depends on flex sizing. The remote stream's native size
+  cannot move the controls.
+- Decision: the local preview is mirrored, as camera apps and Azar do, so
+  moving left moves the preview left. The stream sent to the stranger is not
+  affected.
+- Checked: in the browser with fake cameras at 1920 x 1080, 2560 x 1440,
+  390 x 844, and 844 x 390. The End video button and the preview stayed fully
+  in view at every size, and End video returned both users to the chat.
+- Found: remote media is unreliable. Across four runs on this branch and on
+  `dev` before it, the accepting side's remote tracks always arrived muted
+  (no frames), and in half the runs the requesting side never received a
+  remote stream. This is in the WebRTC video path, not the panel, and is out
+  of scope for Phase 2.
