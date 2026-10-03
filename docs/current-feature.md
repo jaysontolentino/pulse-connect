@@ -25,8 +25,12 @@ browser, and each is fixed before the next is added.
 - D3 - sent chat messages never reach the other user, because the sender tags
   them `msg` and the receiver only reads `chat`. Fixed.
 
-Still to record: a closing tab strands the other peer (found during API
-verification on 2026-10-02).
+- D4 - a closed tab strands the other peer on a dead chat and leaves them
+  `busy`. Fixed.
+
+Still to record: the poll heartbeat refreshes every presence row, so offline
+users are never reaped (confirmed 2026-10-03 after a server restart left ghost
+dots).
 
 Verification also surfaced two findings for Phase 3: unauthenticated polling
 exposes every user's coordinates, and `/api/leave` lets any caller remove any
@@ -43,3 +47,5 @@ user from the map.
 - 2026-10-03 - Fixed D2 (ICE candidates flushed after the remote description),
   merged to dev.
 - 2026-10-03 - Fixed D3 (chat messages sent with the type the receiver reads).
+- 2026-10-03 - Fixed D4 (the surviving peer ends the connection when the
+  channel closes or fails).
