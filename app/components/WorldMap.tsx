@@ -155,20 +155,20 @@ export default function WorldMap({
 
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className="h-full w-full bg-zinc-900" />
+      <div ref={containerRef} className="h-full w-full bg-surface" />
 
       {!TOKEN && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-          <p className="max-w-md rounded-lg bg-zinc-800 p-4 text-sm text-zinc-200">
+          <p className="max-w-md rounded-lg bg-raised p-4 text-sm text-foreground">
             Set{" "}
-            <code className="text-emerald-400">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
+            <code className="text-accent">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
             <code>.env</code> to load the map.
           </p>
         </div>
       )}
 
       {/* Online count */}
-      <div className="absolute bottom-4 left-4 rounded-full bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-300 backdrop-blur">
+      <div className="absolute bottom-4 left-4 rounded-full bg-surface/80 px-3 py-1.5 text-xs text-foreground backdrop-blur">
         {peers.length} online
       </div>
     </div>

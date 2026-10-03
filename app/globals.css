@@ -1,28 +1,30 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  --color-background: #07090c;
+  --color-surface: #0f1318;
+  --color-raised: #181d24;
+  --color-line: #262c35;
+  --color-line-strong: #3a424e;
+  --color-foreground: #e8ecf0;
+  --color-muted: #8b95a1;
+  --color-subtle: #5a6370;
+  --color-accent: #3ddc84;
+  --color-accent-hover: #6ee7a4;
+  --color-on-accent: #07090c;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: #f87171;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
 }
 
 /* Live user dots on the map */
