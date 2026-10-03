@@ -104,3 +104,23 @@
 - Checked: in the browser with three and four sessions, at world zoom (globe)
   and city zoom, at 1280 px and 390 px, with a busy pair visible to a third
   user, and with `prefers-reduced-motion` (no animation).
+
+### S3 - Floating status pills
+
+- Changed: notices, "Requesting connection", and "Waiting for stranger to
+  accept video" render through one `StatusPill` component, with a pulsing
+  accent dot on the two pending states and the Cancel action on the request.
+- Decision: pills stack in a column instead of sharing one slot. Before,
+  a notice and the requesting pill could render on top of each other, and
+  giving either priority would hide the other (or the Cancel button) for up
+  to 3.5 s.
+- Decision: while a chat is open, the pills render inside `ChatPanel`, over
+  the top of the message list, instead of floating over the map. Notices
+  such as "Video declined." arrive mid-chat, and on a phone the panel covers
+  the whole map, so any map position would overlap it.
+- Decision: the Cancel chip is 36 px tall, with a pseudo-element padding its
+  hit area to 44 px so the pill stays compact.
+- Checked: in the browser with a fake camera: request and Cancel at 1280 px,
+  then connect, request video, decline from a 390 px session, and end. The
+  waiting and "Video declined." pills showed inside the chat panel, and the
+  notice moved to the map after End.
