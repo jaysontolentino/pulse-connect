@@ -229,3 +229,24 @@
   another id makes a new row, a leave without the token is a 401). In the
   browser: the gate shows dots, two sessions connect, chat, and end, and a
   closed tab leaves the map in about 3 s.
+
+### H2 - Server-side pairing for signals
+
+- Changed: presence rows record `requestedId` (a pending outgoing request)
+  and `peerId` (the accepted pairing). `lib/pairing.ts` decides each signal:
+  `request` to an online, idle user (busy or offline still auto-declines),
+  `accept` and `decline` only from the requested user, `end` to the peer or
+  to one's own pending request, and `offer`, `answer`, `ice` only between
+  paired users. Anything else is a 409 and is not delivered.
+- Decision: `end` needs no target row, so a user whose peer already left can
+  still unpair and clear their own busy flag (the D4 path).
+- Decision: the other side's row is only changed while it still points at
+  the sender, so a late signal cannot undo a newer pairing.
+- Note: when one user ends a chat, the other's client also sends `end` as its
+  channel closes. That second `end` is now a harmless 409.
+- Checked: against the Neon `dev` branch, a stranger's `accept`, `end`,
+  `offer`, `ice`, and `decline` are all rejected, busy is only set by a real
+  accept, and end, cancel, and a peer leaving all free both users. In the
+  browser: decline, cancel, connect, chat, video, end, and reconnect all
+  work, and a closed tab frees the other user (about 15 s, the same as
+  before H2).
