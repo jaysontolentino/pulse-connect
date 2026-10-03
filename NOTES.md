@@ -124,3 +124,18 @@
   then connect, request video, decline from a 390 px session, and end. The
   waiting and "Video declined." pills showed inside the chat panel, and the
   notice moved to the map after End.
+
+### S4 - Request prompts
+
+- Changed: `ConnectionPrompt` is a centered card after Azar's incoming
+  request: a pulsing accent ring around a person or camera glyph, the title,
+  a subtitle, and 48 px Decline and Accept buttons with Accept as the primary.
+  The backdrop blurs the map behind it.
+- Decision: the prompt takes an `icon` prop so the connection and video
+  requests read differently at a glance. The connection request gained the
+  subtitle "Accept to start an anonymous chat." so both cards share one shape.
+- Decision: the card is an `alertdialog` labelled by its title, so screen
+  readers announce the request when it appears.
+- Checked: in the browser with a fake camera, the connection prompt at 390 px
+  and the video prompt at 1280 px over an open chat. Accepting each still
+  opened the chat and then the video panel on both sides.
