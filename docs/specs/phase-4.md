@@ -117,3 +117,16 @@ built on the video call it fixes.
   - On a phone that supports it, the device vibrates.
   - No tone plays for the user's own actions, or for a request auto-declined
     because the user is busy.
+
+### B1 - Gate dots are tappable right after joining
+
+- Found while testing A1. For up to one poll after Enter, the map still
+  shows the entry gate's dots, whose ids are positions (`lat,lng`) rather
+  than session ids. Tapping one sends a request the API rejects with `400`,
+  and the user is stuck on "Requesting connection…" until the 30 second
+  timeout.
+- Fix: dots are tappable only once a poll with the session token has
+  replaced the gate dots. The gate dots stay visible until then, so nothing
+  blinks.
+- Done when tapping a dot repeatedly from the moment Enter is pressed sends
+  one valid request, and the stranger sees it.
