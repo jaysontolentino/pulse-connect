@@ -21,3 +21,11 @@
   that arrived with the offer or answer was dropped.
 - Fixed: `handleSignal` now sets the remote description first, then flushes
   the queued candidates.
+
+### D3 - Sent chat messages never reach the other user
+
+- Broken: after connecting, messages showed for the sender but never appeared
+  for the other user.
+- Found: traced while fixing D2. `sendChat` tagged messages `t: "msg"`, but
+  the data channel handler only reads `t: "chat"`, so they were dropped.
+- Fixed: `sendChat` in `lib/webrtc.ts` now sends `t: "chat"`.
