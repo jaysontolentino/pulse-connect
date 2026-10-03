@@ -7,12 +7,25 @@ import type { PeerDot } from "@/lib/types";
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "pk.eyJ1IjoicHVsc2UtbWFwIiwiYSI6ImNrMDBkZW1vMDAwMDAwMDAifQ.AAAAAAAAAAAAAAAAAAAAAA";
 
-function dotColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  }
-  return `hsl(${Math.abs(hash) % 360}, 70%, 60%)`;
+const START_ZOOM = 2.5;
+const ARRIVAL_ZOOM = 4;
+const ARRIVAL_MS = 2000;
+
+type ZoomBand = "far" | "mid" | "near" | "close";
+
+function zoomBand(zoom: number): ZoomBand {
+  if (zoom < 3) return "far";
+  if (zoom < 6) return "mid";
+  if (zoom < 10) return "near";
+  return "close";
+}
+
+const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+
+function themeColor(name: string): string {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(`--color-${name}`)
+    .trim();
 }
 
 export default function WorldMap({
@@ -31,6 +44,7 @@ export default function WorldMap({
   const markersRef = useRef<Map<string, Marker>>(new Map());
   const meMarkerRef = useRef<Marker | null>(null);
   const [ready, setReady] = useState(false);
+  const [band, setBand] = useState<ZoomBand>(zoomBand(me ? START_ZOOM : 1.4));
 
   // Marker click handlers are bound once, so read the live click handler +
   // connectability through refs (synced in an effect, never during render).
@@ -54,13 +68,32 @@ export default function WorldMap({
       const map = new mapboxgl.Map({
         container: containerRef.current,
         style: "mapbox://styles/mapbox/dark-v11",
-        // Open centered on the user if we know where they are, else world view.
+        // Open partway down toward the user; the load handler eases the rest
+        // of the way in, as Radio Garden does.
         center: me ? [me.lng, me.lat] : [0, 20],
-        zoom: me ? 4 : 1.4,
+        zoom: me ? START_ZOOM : 1.4,
+        projection: "globe",
         attributionControl: true,
       });
+      map.on("style.load", () => {
+        map.setFog({
+          color: themeColor("surface"),
+          "high-color": themeColor("raised"),
+          "space-color": themeColor("background"),
+          "horizon-blend": 0.04,
+          "star-intensity": 0.15,
+        });
+      });
+      // Dot size is driven by CSS from the band, so this only re-renders when
+      // the zoom crosses a band boundary.
+      map.on("zoom", () => setBand(zoomBand(map.getZoom())));
       map.on("load", () => {
-        if (!cancelled) setReady(true);
+        if (cancelled) return;
+        setReady(true);
+        if (!me) return;
+        // Without `essential`, Mapbox jumps instead when reduced motion is set,
+        // and any drag or scroll cancels the glide.
+        map.easeTo({ zoom: ARRIVAL_ZOOM, duration: ARRIVAL_MS, easing: easeOutCubic });
       });
       mapRef.current = map;
     })();
@@ -75,7 +108,7 @@ export default function WorldMap({
       mapRef.current = null;
       setReady(false);
     };
-    // `me` is only read for the initial center; we don't want to re-init on change.
+    // `me` is only read for the opening view; we don't want to re-init on change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -92,9 +125,8 @@ export default function WorldMap({
         const el = document.createElement("div");
         el.className = "pulse-me";
         el.title = "You are here";
-        el.innerHTML = `<span class="pulse-me-label">Me</span>📍`;
-        // anchor "bottom" → the pin's tip sits on the exact coordinate.
-        meMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        el.innerHTML = `<span class="pulse-me-label">You</span>`;
+        meMarkerRef.current = new mapboxgl.Marker({ element: el })
           .setLngLat([me.lng, me.lat])
           .addTo(map);
       } else {
@@ -125,7 +157,7 @@ export default function WorldMap({
         if (!marker) {
           const el = document.createElement("button");
           el.className = "pulse-dot";
-          el.style.background = dotColor(peer.id);
+          el.innerHTML = `<span class="pulse-dot-core"></span>`;
           el.title = "Tap to connect";
           el.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -136,7 +168,7 @@ export default function WorldMap({
             .addTo(map);
           markers.set(peer.id, marker);
         }
-        marker.getElement().style.opacity = peer.busy ? "0.35" : "1";
+        marker.getElement().classList.toggle("pulse-dot-busy", peer.busy);
       }
 
       // Drop markers for peers that went offline / got filtered out.
@@ -154,7 +186,7 @@ export default function WorldMap({
   }, [peers, ready]);
 
   return (
-    <div className="absolute inset-0">
+    <div className="pulse-map absolute inset-0" data-zoom={band}>
       <div ref={containerRef} className="h-full w-full bg-surface" />
 
       {!TOKEN && (
@@ -167,8 +199,8 @@ export default function WorldMap({
         </div>
       )}
 
-      {/* Online count */}
-      <div className="absolute bottom-4 left-4 rounded-full bg-surface/80 px-3 py-1.5 text-xs text-foreground backdrop-blur">
+      <div className="absolute left-4 top-[calc(env(safe-area-inset-top)+1rem)] flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-lg backdrop-blur">
+        <span className="size-2 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)]" />
         {peers.length} online
       </div>
     </div>
