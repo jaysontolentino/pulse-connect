@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+Completed
 
 ## Goal
 
@@ -89,6 +89,8 @@ committed.
 
 ### H1 - Server-issued session tokens (F2, F3, F4, F5)
 
+- Status: done in #20.
+
 - `join` generates the session's public id and a secret token on the server,
   stores only a hash of the token on the presence row, and returns both. The
   client no longer chooses its id.
@@ -104,6 +106,8 @@ committed.
 
 ### H2 - Server-side pairing for signals (F3)
 
+- Status: done in #22.
+
 - Record who is connected to whom on accept, and the pending requester on
   request. Accept only `request` to an online user who is not busy, and only
   `accept` and `decline` from the user who was requested. Accept `offer`,
@@ -114,6 +118,8 @@ committed.
 
 ### H3 - Validate every request with Zod (F3, F4, F6)
 
+- Status: done in #23.
+
 - Replace the hand-written checks in all four routes with Zod schemas, as the
   coding standards require. Adds `zod` as a dependency.
 - Done when:
@@ -121,6 +127,8 @@ committed.
     database.
 
 ### H4 - Rate limits (F6)
+
+- Status: done in #26.
 
 - Database-backed limits, with no external service: a cap on signals per
   session per minute, on pending requests per session, and on mailbox size
@@ -135,6 +143,8 @@ committed.
 
 ### H5 - A view-only feed for the entry gate (F1)
 
+- Status: done in #24.
+
 - The gate polls a separate endpoint that returns positions without ids and
   without a mailbox. Ids go only to joined sessions through the token-checked
   poll.
@@ -143,6 +153,8 @@ committed.
   - The gate globe still shows who is online.
 
 ### H6 - Security headers (F7)
+
+- Status: done in #25.
 
 - Set headers in `next.config.ts`: a Content-Security-Policy that allows
   Mapbox (including its workers and tiles), `Permissions-Policy` limiting
@@ -161,6 +173,12 @@ committed.
 - WebRTC exposes each peer's IP address to the other once they connect. A
   relay (TURN) server would hide it, but that is an external service, which
   the requirements rule out.
+- Calls find each other through Google's public STUN server
+  (`lib/webrtc.ts`), which sees both peers' IP addresses during setup. CSP
+  does not cover WebRTC, and avoiding it would mean hosting our own STUN
+  server, which the requirements rule out.
+- Join limits live in memory per server instance, so on serverless they are
+  best effort.
 - A user who joins many times gets a new random offset each time. Averaging
   many sessions from one place could narrow it down. Low value, recorded only.
 
