@@ -1,6 +1,6 @@
 # Current Feature
 
-Phase 1 - Make it run
+Phase 2 - Styling
 
 ## Status
 
@@ -8,32 +8,30 @@ Completed
 
 ## Goals
 
-Fix the defects that stop Pulse working end to end, so two strangers can see
-each other on the map, connect, chat, and start a video call.
+Make Pulse look and feel like one deliberate product: a dark, living globe of
+glowing dots with quiet floating panels, following Radio Garden for the map
+and Azar for the request and call screens. Works on phone and desktop. No
+behavior changes.
 
-Full spec, acceptance criteria, and the defect list: [docs/specs/phase-1.md](specs/phase-1.md)
+Full spec, design direction, references, and items: [docs/specs/phase-2.md](specs/phase-2.md)
 
 ## Notes
 
-Defects are added to the spec one at a time, after they are checked in the
-browser, and each is fixed before the next is added.
+Items land one at a time, each on its own branch and checked in the browser
+at desktop and 390 px mobile width.
 
-- D1 - ending a connection leaves both users busy, so every later request is
-  auto-declined. Fixed.
-- D2 - accepted connections never leave "connecting", because queued ICE
-  candidates were flushed before the remote description was set. Fixed.
-- D3 - sent chat messages never reach the other user, because the sender tags
-  them `msg` and the receiver only reads `chat`. Fixed.
-- D4 - a closed tab strands the other peer on a dead chat and leaves them
-  `busy`. Fixed.
-- D5 - offline users are never removed from the map, because the poll
-  heartbeat refreshed every presence row. Fixed.
-- D6 - video call controls are pushed off screen on large windows, because
-  the remote video's native size drove the panel layout. Fixed.
+- S1 - Design tokens and typography
+- S2 - Map and dots
+- S3 - Floating status pills
+- S4 - Request prompts
+- S5 - Chat panel
+- S6 - Video call
+- S7 - Entry gate
 
-Verification also surfaced two findings for Phase 3: unauthenticated polling
-exposes every user's coordinates, and `/api/leave` lets any caller remove any
-user from the map.
+Phase 1 is complete: [docs/specs/phase-1.md](specs/phase-1.md). Its two
+security findings are carried to Phase 3. Features deferred from this phase,
+and the unreliable remote video found while testing S6, are kept in the
+Phase 4 backlog: [docs/specs/phase-4.md](specs/phase-4.md).
 
 ## History
 
@@ -52,3 +50,6 @@ user from the map.
 - 2026-10-03 - Fixed D6 (video panel no longer sized by the remote stream).
 - 2026-10-03 - Phase 1 completed. Two strangers can see each other, connect,
   chat, and start a video call.
+- 2026-10-03 - Wrote the Phase 2 styling spec.
+- 2026-10-03 - Phase 2 completed (S1 to S7). Started the Phase 4 backlog,
+  including the unreliable remote video found during S6.

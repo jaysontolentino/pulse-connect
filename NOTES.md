@@ -60,3 +60,143 @@
   resolution, so it grew taller than the viewport and the bar was clipped.
 - Fixed: `VideoPanel` gives the container `min-h-0` and positions the remote
   video absolutely, so the stream size no longer drives the layout.
+
+## Phase 2
+
+### S1 - Design tokens and typography
+
+- Changed: the palette lives in `@theme` in `app/globals.css` (background,
+  surface, raised, line, line-strong, foreground, muted, subtle, accent,
+  on-accent, danger, danger-soft). Every raw zinc, emerald, and red class in
+  `app/page.tsx` and `app/components/` now uses a token utility. The unused
+  light-mode variables are gone, and so is the `Arial` override, so Geist
+  applies everywhere.
+- Decision: danger is red-600 rather than red-500, so white button text meets
+  AA contrast. `danger-soft` is a lighter red for error text on the dark
+  background, where red-600 is too dim.
+- Checked: in the browser at 1280 px and 390 px, the entry gate, map,
+  requesting pill, and chat panel on both sides of a live connection.
+
+### S2 - Map and dots
+
+- Changed: the map uses the Mapbox `globe` projection with fog and stars
+  colored from the palette tokens. Every dot is an accent-colored core with a
+  breathing glow, and busy dots are grey, dimmed, and still. The 📍 emoji is
+  replaced by a CSS "You" marker, and the online count is a pill at the top
+  left, clear of the Mapbox logo.
+- Gotcha: Mapbox positions a marker with an inline `transform` and fades
+  occluded globe markers with an inline `opacity`. The old hover `scale` and
+  busy `opacity` on the marker element either never applied or fought with
+  that, so the visuals now live on an inner `.pulse-dot-core`.
+- Decision: the "You" marker ignores pointer events, because its label can
+  sit on top of a nearby stranger's dot and swallow the click.
+- Decision: the map opens at zoom 2.5 on the user and eases to zoom 4 over
+  2 s with an ease-out curve, as Radio Garden does. An earlier version opened
+  on the whole globe first, which felt slow. `easeTo` is not marked
+  `essential`, so Mapbox jumps instead under reduced motion, and any drag or
+  scroll cancels the glide.
+- Decision: dot size follows the zoom in four bands (far below 3, mid below
+  6, near below 10, close beyond), set as `data-zoom` on the map wrapper and
+  read by CSS variables. Bands rather than a continuous scale mean React only
+  re-renders when a boundary is crossed, and no inline styles are needed.
+  Dots are 6, 10, 14, and 18 px, the "You" marker 4 px larger, and the size
+  eases between bands. The 28 px hit area stays fixed at every zoom.
+- Checked: in the browser with three and four sessions, at world zoom (globe)
+  and city zoom, at 1280 px and 390 px, with a busy pair visible to a third
+  user, and with `prefers-reduced-motion` (no animation).
+
+### S3 - Floating status pills
+
+- Changed: notices, "Requesting connection", and "Waiting for stranger to
+  accept video" render through one `StatusPill` component, with a pulsing
+  accent dot on the two pending states and the Cancel action on the request.
+- Decision: pills stack in a column instead of sharing one slot. Before,
+  a notice and the requesting pill could render on top of each other, and
+  giving either priority would hide the other (or the Cancel button) for up
+  to 3.5 s.
+- Decision: while a chat is open, the pills render inside `ChatPanel`, over
+  the top of the message list, instead of floating over the map. Notices
+  such as "Video declined." arrive mid-chat, and on a phone the panel covers
+  the whole map, so any map position would overlap it.
+- Decision: the Cancel chip is 36 px tall, with a pseudo-element padding its
+  hit area to 44 px so the pill stays compact.
+- Checked: in the browser with a fake camera: request and Cancel at 1280 px,
+  then connect, request video, decline from a 390 px session, and end. The
+  waiting and "Video declined." pills showed inside the chat panel, and the
+  notice moved to the map after End.
+
+### S4 - Request prompts
+
+- Changed: `ConnectionPrompt` is a centered card after Azar's incoming
+  request: a pulsing accent ring around a person or camera glyph, the title,
+  a subtitle, and 48 px Decline and Accept buttons with Accept as the primary.
+  The backdrop blurs the map behind it.
+- Decision: the prompt takes an `icon` prop so the connection and video
+  requests read differently at a glance. The connection request gained the
+  subtitle "Accept to start an anonymous chat." so both cards share one shape.
+- Decision: the card is an `alertdialog` labelled by its title, so screen
+  readers announce the request when it appears.
+- Checked: in the browser with a fake camera, the connection prompt at 390 px
+  and the video prompt at 1280 px over an open chat. Accepting each still
+  opened the chat and then the video panel on both sides.
+
+### S5 - Chat panel
+
+- Changed: on desktop the chat is a floating rounded panel inset from the
+  right edge. Below the `sm` breakpoint it is a bottom sheet at 66 dvh with a
+  grabber, leaving the top of the map visible. The header has a live status
+  dot, a Video button with a camera glyph, and End. Bubbles have a tail
+  corner, wrap long or unbroken text, and keep line breaks. Before the
+  connection opens, the empty state reads "Opening a private line to the
+  stranger" instead of "Say hello".
+- Decision: the root layout sets `viewportFit: "cover"` so the safe-area
+  insets apply, and `interactiveWidget: "resizes-content"` so Android Chrome
+  shrinks the layout for the keyboard and the sheet's input stays above it.
+  iOS Safari ignores that setting and pans the focused input into view.
+- Decision: the input uses 16 px text on phones, because iOS Safari zooms
+  the page when focusing an input with smaller text.
+- Decision: the panel is opaque. A translucent, blurred panel let the glow of
+  the dots behind it bleed through as a smudge. The desktop panel stops 40 px
+  above the bottom so it does not cover the Mapbox attribution.
+- Checked: in the browser at 1280 px and 390 px: the connecting state, a
+  two-way conversation with a long sentence and a long unbroken URL, no
+  horizontal overflow, and the newest message in view after 16 messages. The
+  on-screen keyboard could not be exercised headless.
+
+### S6 - Video call
+
+- Changed: full-bleed remote video under a top-left "Stranger" chip, the
+  local preview as a rounded 3:4 tile in the top-right corner, and a floating
+  56 px End video button over a bottom gradient, padded by the bottom
+  safe-area inset. The waiting state has the same pulsing accent dot as the
+  status pills.
+- Decision: every layer is absolutely positioned inside the panel, so the D6
+  guarantee no longer depends on flex sizing. The remote stream's native size
+  cannot move the controls.
+- Decision: the local preview is mirrored, as camera apps and Azar do, so
+  moving left moves the preview left. The stream sent to the stranger is not
+  affected.
+- Checked: in the browser with fake cameras at 1920 x 1080, 2560 x 1440,
+  390 x 844, and 844 x 390. The End video button and the preview stayed fully
+  in view at every size, and End video returned both users to the chat.
+- Found: remote media is unreliable. Across four runs on this branch and on
+  `dev` before it, the accepting side's remote tracks always arrived muted
+  (no frames), and in half the runs the requesting side never received a
+  remote stream. This is in the WebRTC video path, not the panel, and is out
+  of scope for Phase 2.
+
+### S7 - Entry gate
+
+- Changed: the gate is a transparent overlay on the live map. A slowly
+  spinning globe shows who is online (not tappable), labelled only with their
+  countries. On Enter the gate fades and the globe flies to the user. This
+  replaces S2's opening.
+- Decision: the gate polls every 5 s instead of 1.5 s, since every visitor
+  polls there. Country names are HTML markers placed from Mapbox's
+  `country-boundaries-v1` tileset, with overlapping labels hidden.
+- Gotcha: the style's own country labels show nothing on a phone, because
+  the tiles at that zoom carry no country names.
+- Note for Phase 3: the gate reads every online user's offset coordinates
+  before joining, so any `/api/poll` fix must keep a view-only path.
+- Checked: at 1280 px and 390 px: spin, labels, fly-in, reduced motion,
+  denied location, and two sessions connecting.

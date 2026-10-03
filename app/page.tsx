@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import EntryGate from "./components/EntryGate";
 import WorldMap from "./components/WorldMap";
 import ConnectionPrompt from "./components/ConnectionPrompt";
+import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
 import { join, leave, poll, sendSignal } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
-import { POLL_INTERVAL_MS } from "@/lib/presence";
+import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
 import { type PeerDot, type SignalMsg } from "@/lib/types";
 
 type Conn =
@@ -282,8 +283,11 @@ export default function Home() {
     processSignalRef.current = processSignal;
   });
 
+  // The gate polls too, so its globe shows who is online, but more slowly:
+  // every visitor polls there, including those who never enter.
   useEffect(() => {
-    if (phase !== "live" || !sessionId) return;
+    if (!sessionId) return;
+    const live = phase === "live";
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -292,9 +296,9 @@ export default function Home() {
         const data = await poll(sessionId);
         if (!active) return;
         setPeers(data.peers);
-        for (const s of data.signals) processSignalRef.current(s);
+        if (live) for (const s of data.signals) processSignalRef.current(s);
       } catch {}
-      if (active) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      if (active) timer = setTimeout(tick, live ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
     };
     tick();
 
@@ -321,11 +325,22 @@ export default function Home() {
     setPhase("live");
   }
 
-  if (phase === "gate") {
-    return <EntryGate onReady={handleReady} />;
-  }
-
   const inChat = conn.kind === "connecting" || conn.kind === "connected";
+
+  const hasStatus = Boolean(notice) || conn.kind === "requesting" || video === "requesting";
+  const status: ReactNode = hasStatus && (
+    <div className="pointer-events-auto flex flex-col items-center gap-2">
+      {notice && <StatusPill>{notice}</StatusPill>}
+      {conn.kind === "requesting" && (
+        <StatusPill pending action={{ label: "Cancel", onClick: cancelRequest }}>
+          Requesting connection…
+        </StatusPill>
+      )}
+      {video === "requesting" && (
+        <StatusPill pending>Waiting for stranger to accept video…</StatusPill>
+      )}
+    </div>
+  );
 
   return (
     <main className="fixed inset-0 overflow-hidden">
@@ -333,30 +348,24 @@ export default function Home() {
         peers={peers}
         me={myLocation}
         onPeerClick={requestConnection}
-        canConnect={conn.kind === "idle"}
+        canConnect={phase === "live" && conn.kind === "idle"}
       />
 
-      {notice && (
-        <div className="absolute left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
-          {notice}
-        </div>
+      {phase === "gate" && (
+        <EntryGate onReady={handleReady} leaving={myLocation !== null} />
       )}
 
-      {conn.kind === "requesting" && (
-        <div className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
-          <span>Requesting connection…</span>
-          <button
-            onClick={cancelRequest}
-            className="rounded-full bg-zinc-700 px-3 py-1 text-xs hover:bg-zinc-600"
-          >
-            Cancel
-          </button>
+      {!inChat && hasStatus && (
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 flex justify-center px-4">
+          {status}
         </div>
       )}
 
       {conn.kind === "incoming" && (
         <ConnectionPrompt
+          icon="connect"
           title="A stranger wants to connect"
+          subtitle="Accept to start an anonymous chat."
           acceptLabel="Accept"
           declineLabel="Decline"
           onAccept={acceptIncoming}
@@ -375,17 +384,13 @@ export default function Home() {
           }}
           onStartVideo={startVideoRequest}
           onEnd={endConnection}
+          status={status}
         />
-      )}
-
-      {video === "requesting" && (
-        <div className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
-          Waiting for stranger to accept video…
-        </div>
       )}
 
       {video === "incoming" && (
         <ConnectionPrompt
+          icon="video"
           title="Start video call?"
           subtitle="The stranger wants to turn on video."
           acceptLabel="Accept"
