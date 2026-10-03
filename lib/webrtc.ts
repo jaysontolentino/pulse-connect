@@ -26,6 +26,7 @@ export class PeerSession {
   private makingOffer = false;
   private ignoreOffer = false;
   private localStream: MediaStream | null = null;
+  private readonly remoteStream = new MediaStream();
   private closed = false;
   private readonly cb: PeerCallbacks;
   private pendingCandidates: RTCIceCandidateInit[] = [];
@@ -53,15 +54,21 @@ export class PeerSession {
       }
     };
 
-    this.pc.ontrack = ({ streams }) => {
-      this.cb.onRemoteStream(streams[0] ?? null);
+    this.pc.ontrack = ({ track }) => {
+      this.remoteStream.addTrack(track);
+      this.cb.onRemoteStream(this.remoteStream);
     };
 
     this.pc.onconnectionstatechange = () => {
       this.cb.onConnectionState(this.pc.connectionState);
     };
 
+    // Media slots are negotiated up front, and video only swaps tracks in
+    // and out of them. Adding tracks mid-call made both sides renegotiate at
+    // once, and the losing side's tracks were never negotiated.
     if (initiator) {
+      this.pc.addTransceiver("audio", { direction: "sendrecv" });
+      this.pc.addTransceiver("video", { direction: "sendrecv" });
       this.dc = this.pc.createDataChannel("chat");
       this.wireDataChannel(this.dc);
     } else {
@@ -115,6 +122,10 @@ export class PeerSession {
     await this.pc.setRemoteDescription(desc);
     await this.flushPendingCandidates();
     if (desc.type === "offer") {
+      // Transceivers created from a remote offer start recvonly.
+      for (const t of this.pc.getTransceivers()) {
+        if (t.direction === "recvonly") t.direction = "sendrecv";
+      }
       await this.pc.setLocalDescription();
       if (this.pc.localDescription) {
         this.cb.onSignal("answer", JSON.stringify(this.pc.localDescription));
@@ -154,7 +165,7 @@ export class PeerSession {
         audio: true,
       });
       for (const track of this.localStream.getTracks()) {
-        this.pc.addTrack(track, this.localStream);
+        await this.senderFor(track.kind)?.replaceTrack(track);
       }
     }
     return this.localStream;
@@ -162,16 +173,18 @@ export class PeerSession {
 
   stopVideo() {
     if (this.localStream) {
-      for (const track of this.localStream.getTracks()) track.stop();
-      for (const sender of this.pc.getSenders()) {
-        if (sender.track) {
-          try {
-            this.pc.removeTrack(sender);
-          } catch {}
-        }
+      for (const track of this.localStream.getTracks()) {
+        track.stop();
+        void this.senderFor(track.kind)?.replaceTrack(null).catch(() => {});
       }
       this.localStream = null;
     }
+  }
+
+  private senderFor(kind: string): RTCRtpSender | undefined {
+    return this.pc
+      .getTransceivers()
+      .find((t) => t.receiver.track.kind === kind)?.sender;
   }
 
   close() {

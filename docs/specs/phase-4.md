@@ -44,6 +44,19 @@ built on the video call it fixes.
     stored, and drained, in the other order.
   - Check the network tab for `429` responses from `/api/signal` during
     renegotiation (limit: 120 a minute).
+- Cause (reproduced on 2026-10-03 with two headless Chrome sessions and fake
+  cameras, which failed in every run once the WebRTC calls were logged): the
+  first lead. When video is accepted, both sides add tracks and send an
+  offer at almost the same moment. The connection initiator ignores the
+  other side's offer, the other side rolls its own offer back and answers,
+  and that answer carries none of its tracks. No new offer follows, so one
+  side never gets a remote stream and the other gets tracks with no frames.
+  Ending video renegotiated again just before hang-up as well.
+- Fix: the first offer of every chat carries an audio and a video slot on
+  both sides. Starting and ending video only swaps tracks in and out of
+  those slots with `replaceTrack`, so nothing is renegotiated after setup.
+  `VideoPanel` hides "Waiting for stranger's video" on the first decoded
+  frame, because the remote stream now exists from the start of the chat.
 - Fix the confirmed cause only. Keep the D2 and D6 guarantees.
 - Done when, with two real cameras:
   - Ten video calls in a row show both remote videos, with frames, on both
