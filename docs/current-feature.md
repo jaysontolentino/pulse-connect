@@ -1,6 +1,6 @@
 # Current Feature
 
-Phase 3 - Security hardening
+Phase 4 - New features
 
 ## Status
 
@@ -8,41 +8,26 @@ Completed
 
 ## Goals
 
-Nobody can act as another user, read their messages, or remove them from the
-map, and nobody can flood the coordination API. Pulse stays anonymous, with
-no accounts and no new external services.
+A video call works every time, and the call, chat, and request flows give
+strangers mute and camera controls, a typing indicator, and an alert when
+someone reaches out. Nothing new reaches the server.
 
-Full spec, findings, and items: [docs/specs/phase-3.md](specs/phase-3.md)
+Full spec and items: [docs/specs/phase-4.md](specs/phase-4.md)
 
 ## Notes
 
-All seven findings were reproduced with `curl` against the local app. They
-share one root cause: the client-chosen session id is public (every poll
-returns it) and is also the only credential.
+All five items are done:
 
-- F1 - Polling exposes every user's id to anyone
-- F2 - Anyone can read another user's mailbox
-- F3 - Anyone can send signals as anyone
-- F4 - Anyone can move another user's dot
-- F5 - Anyone can remove another user from the map
-- F6 - No rate limits
-- F7 - No security headers
+- V1 - remote video negotiated once per chat, so it always arrives (#30)
+- V2 - mic and camera toggles during a call (#31)
+- C1 - typing indicator (#32)
+- A1 - tone and vibration on incoming requests (#33)
+- B1 - dots tappable only once they carry session ids (#34)
 
-All seven are closed:
+Still to check by hand, with real hardware: V1 with two real cameras, and
+A1 in a background tab and on an Android phone. See Open checks in the spec.
 
-- H1 - server-issued session tokens (F2 to F5)
-- H2 - server-side pairing for signals (F3)
-- H3 - Zod validation on every route
-- H4 - rate limits (F6)
-- H5 - an id-free view of who is online for the entry gate (F1)
-- H6 - security headers (F7)
-
-Production gets the three Phase 3 migrations automatically on the next
-`dev` to `main` merge, which needs `DIRECT_URL` set in Vercel. That deploy
-logs everyone off the map once.
-
-Phase 2 is complete: [docs/specs/phase-2.md](specs/phase-2.md). The Phase 4
-backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
+Phase 3 is complete: [docs/specs/phase-3.md](specs/phase-3.md).
 
 ## History
 
@@ -69,3 +54,12 @@ backlog is in [docs/specs/phase-4.md](specs/phase-4.md).
 - 2026-10-03 - Baselined the production database, moved local development to
   a Neon `dev` branch, and made production builds apply migrations.
 - 2026-10-03 - Phase 3 completed (H1 to H6). All seven findings closed.
+- 2026-10-03 - Wrote the Phase 4 spec (V1, V2, C1, A1).
+- 2026-10-03 - Fixed V1 (media slots negotiated once, so remote video always
+  arrives).
+- 2026-10-03 - Added V2 (mic and camera toggles), C1 (typing indicator), and
+  A1 (incoming request alert).
+- 2026-10-03 - Fixed B1 (gate dots no longer tappable before session ids
+  arrive), found while testing A1.
+- 2026-10-03 - Phase 4 completed (V1, V2, C1, A1, B1). Real-hardware checks
+  for V1 and A1 remain open.

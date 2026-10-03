@@ -8,8 +8,15 @@ import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
 import { gateDots, join, leave, poll, sendSignal } from "@/lib/api";
-import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
+import {
+  PeerSession,
+  type DescType,
+  type MediaFlags,
+  type MediaKind,
+  type PeerControl,
+} from "@/lib/webrtc";
 import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
+import { useRequestAlert } from "@/lib/use-request-alert";
 import { type PeerDot, type SignalMsg, type SignalType } from "@/lib/types";
 
 type Conn =
@@ -22,11 +29,17 @@ type Conn =
 type VideoState = "none" | "requesting" | "incoming" | "active";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const TYPING_TIMEOUT_MS = 5_000;
+const MEDIA_ON: MediaFlags = { mic: true, camera: true };
 
 export default function Home() {
   const [phase, setPhase] = useState<"gate" | "live">("gate");
   const [token, setToken] = useState<string | null>(null);
   const [peers, setPeers] = useState<PeerDot[]>([]);
+  // Gate dots are keyed by position, not session id, and stay on the map
+  // until the first poll with the token replaces them. Tapping one would
+  // request a session that does not exist.
+  const [peersHaveIds, setPeersHaveIds] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -44,14 +57,25 @@ export default function Home() {
 
   const [video, _setVideo] = useState<VideoState>("none");
   const videoRef = useRef<VideoState>(video);
+  const [localMedia, setLocalMedia] = useState<MediaFlags>(MEDIA_ON);
+  const [remoteMedia, setRemoteMedia] = useState<MediaFlags>(MEDIA_ON);
   const setVideo = (v: VideoState) => {
     videoRef.current = v;
     _setVideo(v);
+    // The stranger may toggle before our video is active, so remote flags
+    // are only reset when a video ends, never when one starts.
+    if (v === "none") {
+      setLocalMedia(MEDIA_ON);
+      setRemoteMedia(MEDIA_ON);
+    }
   };
 
   const peerRef = useRef<PeerSession | null>(null);
+  const requestAlert = useRequestAlert();
   const msgId = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [strangerTyping, setStrangerTyping] = useState(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showNotice(text: string) {
     setNotice(text);
@@ -66,8 +90,17 @@ export default function Home() {
     setMessages((prev) => [...prev, { id: msgId.current++, mine, text }]);
   }
 
+  function showTyping(on: boolean) {
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    setStrangerTyping(on);
+    if (on) {
+      typingTimer.current = setTimeout(() => setStrangerTyping(false), TYPING_TIMEOUT_MS);
+    }
+  }
+
   function teardown(message?: string) {
     if (requestTimer.current) clearTimeout(requestTimer.current);
+    showTyping(false);
     peerRef.current?.close();
     peerRef.current = null;
     setLocalStream(null);
@@ -83,7 +116,11 @@ export default function Home() {
       onSignal: (type: DescType, payload: string) => {
         signal(peerId, type, payload);
       },
-      onChat: (text) => addMessage(false, text),
+      onChat: (text) => {
+        showTyping(false);
+        addMessage(false, text);
+      },
+      onTyping: () => showTyping(true),
       onControl: (ctrl) => handleControl(ctrl),
       onRemoteStream: (stream) => setRemoteStream(stream),
       onConnectionState: (state) => {
@@ -114,7 +151,10 @@ export default function Home() {
     const ps = peerRef.current;
     switch (ctrl) {
       case "video-request":
-        if (videoRef.current === "none") setVideo("incoming");
+        if (videoRef.current === "none") {
+          setVideo("incoming");
+          requestAlert.play();
+        }
         break;
       case "video-accept":
         if (videoRef.current === "requesting" && ps) {
@@ -139,8 +179,15 @@ export default function Home() {
       case "video-end":
         ps?.stopVideo();
         setLocalStream(null);
-        setRemoteStream(null);
         setVideo("none");
+        break;
+      case "mic-on":
+      case "mic-off":
+        setRemoteMedia((m) => ({ ...m, mic: ctrl === "mic-on" }));
+        break;
+      case "camera-on":
+      case "camera-off":
+        setRemoteMedia((m) => ({ ...m, camera: ctrl === "camera-on" }));
         break;
     }
   }
@@ -221,8 +268,16 @@ export default function Home() {
     ps?.stopVideo();
     ps?.sendControl("video-end");
     setLocalStream(null);
-    setRemoteStream(null);
     setVideo("none");
+  }
+
+  function toggleMedia(kind: MediaKind) {
+    const ps = peerRef.current;
+    if (!ps) return;
+    const on = !localMedia[kind];
+    ps.setMediaEnabled(kind, on);
+    ps.sendControl(`${kind}-${on ? "on" : "off"}` as const);
+    setLocalMedia((m) => ({ ...m, [kind]: on }));
   }
 
   function processSignal(sig: SignalMsg) {
@@ -230,6 +285,7 @@ export default function Home() {
       case "request": {
         if (connRef.current.kind === "idle") {
           setConn({ kind: "incoming", peerId: sig.fromId });
+          requestAlert.play();
         } else {
           signal(sig.fromId, "decline");
         }
@@ -300,6 +356,7 @@ export default function Home() {
           const data = await poll(token);
           if (!active) return;
           setPeers(data.peers);
+          setPeersHaveIds(true);
           for (const s of data.signals) processSignalRef.current(s);
         } else {
           const dots = await gateDots();
@@ -363,11 +420,15 @@ export default function Home() {
         peers={peers}
         me={myLocation}
         onPeerClick={requestConnection}
-        canConnect={phase === "live" && conn.kind === "idle"}
+        canConnect={phase === "live" && peersHaveIds && conn.kind === "idle"}
       />
 
       {phase === "gate" && (
-        <EntryGate onReady={handleReady} leaving={myLocation !== null} />
+        <EntryGate
+          onEnter={requestAlert.unlock}
+          onReady={handleReady}
+          leaving={myLocation !== null}
+        />
       )}
 
       {!inChat && hasStatus && (
@@ -393,6 +454,8 @@ export default function Home() {
           messages={messages}
           connected={conn.kind === "connected"}
           videoBusy={video !== "none"}
+          strangerTyping={strangerTyping}
+          onTyping={() => peerRef.current?.sendTyping()}
           onSend={(text) => {
             peerRef.current?.sendChat(text);
             addMessage(true, text);
@@ -419,6 +482,9 @@ export default function Home() {
         <VideoPanel
           localStream={localStream}
           remoteStream={remoteStream}
+          localMedia={localMedia}
+          remoteMedia={remoteMedia}
+          onToggleMedia={toggleMedia}
           onEnd={endVideo}
         />
       )}

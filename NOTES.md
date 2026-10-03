@@ -1,324 +1,118 @@
 # Notes
 
-## Phase 1
+## Phase 1 - Making it work
 
-### D1 - Ending a connection leaves both users busy
+Each bug was reproduced in the browser with two or three tabs, then traced in
+the code or confirmed against the API.
 
-- Broken: after two users connected and one pressed End, every later request
-  between them was auto-declined by the server, and both dots stayed dimmed.
-- Found: checked in the browser with two tabs, then reproduced against the API
-  with two sessions. Request, accept, `end`, request returned
-  `autoDeclined: true` with both rows still `busy = true`.
-- Fixed: `app/api/signal/route.ts` now clears `busy` for both peers on `end`,
-  the same as on `decline`.
+| Bug | How it was found | Fix |
+| --- | --- | --- |
+| D1 - After ending a chat, both users stayed "busy" and could not connect again | Request, accept, end, request: the server auto-declined | Clear `busy` for both users on `end` |
+| D2 - Chats stuck on "connecting" | Traced in `lib/webrtc.ts`: network candidates were applied before the connection was ready, so all were dropped | Apply them after the remote description is set |
+| D3 - Messages never reached the other user | The sender tagged messages `msg`, the receiver only read `chat` | Send `chat` |
+| D4 - Closing a tab left the other user on a dead chat, still busy | Connect two tabs, close one, try to reach the other from a third | End the chat when the connection closes or fails |
+| D5 - Users who left stayed on the map forever | Restarted the server with users online: old dots never went away | The heartbeat only updates the caller, so stale users are removed |
+| D6 - In fullscreen, the End video button went off screen | The video's size pushed the layout taller than the window | Position the video absolutely, so its size cannot move the controls |
 
-### D2 - Accepted connections never leave "connecting"
+## Phase 2 - Styling
 
-- Broken: after a request was accepted, both chat panels stayed on
-  "connecting", so neither chat nor video could start.
-- Found: reported from the browser, then traced in `lib/webrtc.ts`. Queued ICE
-  candidates were flushed before `setRemoteDescription`, so every candidate
-  that arrived with the offer or answer was dropped.
-- Fixed: `handleSignal` now sets the remote description first, then flushes
-  the queued candidates.
+The goal was to look like one deliberate product without changing behavior.
+The map is the product, so it stays full-screen with a few small panels
+floating over it, after Radio Garden: a dark globe, one green accent, and
+dots that glow and breathe so the map feels alive. The request and call
+screens follow Azar: big buttons and one clear action at a time.
 
-### D3 - Sent chat messages never reach the other user
+- S1 - Colors and fonts: one shared palette instead of hardcoded colors. The
+  red was darkened so white text on it is readable.
+- S2 - Map and dots: a 3D globe, glowing green dots, grey dots for busy
+  users, and a "You" marker instead of an emoji. Dots grow as you zoom in.
+- S3 - Status messages: one shared pill style, stacked so two messages never
+  cover each other.
+- S4 - Request prompts: a centered card with Accept and Decline, and a
+  different icon for chat and video requests.
+- S5 - Chat: a floating panel on desktop and a bottom sheet on phones, so the
+  map stays visible. The input stays above the phone keyboard.
+- S6 - Video: full-screen video, your camera in a corner tile, controls
+  floating at the bottom.
+- S7 - Entry screen: a spinning globe of who is online, which flies down to
+  you when you enter.
 
-- Broken: after connecting, messages showed for the sender but never appeared
-  for the other user.
-- Found: traced while fixing D2. `sendChat` tagged messages `t: "msg"`, but
-  the data channel handler only reads `t: "chat"`, so they were dropped.
-- Fixed: `sendChat` in `lib/webrtc.ts` now sends `t: "chat"`.
+Every item was checked on desktop and at phone width (390 px), with readable
+contrast, touch targets of at least 44 px, and no animation for users who
+turn motion off.
 
-### D4 - A closed tab strands the other peer
+## Phase 3 - Security
 
-- Broken: when one user closed the tab mid-chat, the other stayed on a dead
-  chat panel and stayed `busy`, so every new request to them was declined.
-- Found: reproduced in the browser with three tabs (connect A and B, close B,
-  request A from C). The server cannot tell A, because it has no record of who
-  is connected to whom.
-- Fixed: `PeerSession` now reports a data channel closed by the remote side,
-  and the page ends the connection on that or on a failed connection, sending
-  `end` so the D1 path clears `busy`.
+### Issues found
 
-### D5 - Offline users are never removed from the map
+All seven came from one problem: a user's id was public (anyone could list
+every id), and that id was also the only thing proving who you were.
 
-- Broken: users whose leave beacon was lost stayed on the map forever, so the
-  online count kept growing.
-- Found: in the browser, stopping and restarting the server with two users
-  online, then refreshing both tabs, left the two old rows counted as online.
-  The heartbeat in `app/api/poll/route.ts` updated `lastSeen` on every row.
-- Fixed: the heartbeat is scoped to the caller with `where: { id }`, so rows
-  that stop polling go stale and are reaped.
+### Ranked by harm
 
-### D6 - Video call controls are pushed off screen
+1. F2 - Anyone could read another user's messages from the server, including
+   their IP address. This breaks the promise of anonymity.
+2. F3 - Anyone could send messages pretending to be someone else, and break
+   into or end their chats.
+3. F1 - Anyone could list every user's id. Harmless alone, but it made every
+   other attack work against everyone at once.
+4. F5 - Anyone could remove any user from the map.
+5. F6 - No limits, so anyone could flood the server.
+6. F4 - Anyone could move another user's dot. It cannot reveal a real
+   location, since only offset positions are stored.
+7. F7 - No browser security headers. Extra protection, nothing exploitable
+   today.
 
-- Broken: during a video call, resizing the window to fullscreen hid the End
-  video button and the local preview, so the call could not be ended.
-- Found: in the browser, video call between two tabs, then fullscreen. The
-  remote video's container is a flex item sized by the video's native
-  resolution, so it grew taller than the viewport and the bar was clipped.
-- Fixed: `VideoPanel` gives the container `min-h-0` and positions the remote
-  video absolutely, so the stream size no longer drives the layout.
+### What was fixed
 
-## Phase 2
+All seven:
 
-### S1 - Design tokens and typography
+- H1 - The server issues each user a secret token, and every request must
+  carry it. This alone closed F2 to F5, so it went first.
+- H2 - The server only passes messages between two users who actually
+  connected (F3).
+- H3 - Every request is checked for a valid shape before it is used.
+- H4 - Rate limits on messages, requests, and joins (F6).
+- H5 - The entry screen gets a list of dots with no ids (F1).
+- H6 - Security headers on every response (F7).
 
-- Changed: the palette lives in `@theme` in `app/globals.css` (background,
-  surface, raised, line, line-strong, foreground, muted, subtle, accent,
-  on-accent, danger, danger-soft). Every raw zinc, emerald, and red class in
-  `app/page.tsx` and `app/components/` now uses a token utility. The unused
-  light-mode variables are gone, and so is the `Arial` override, so Geist
-  applies everywhere.
-- Decision: danger is red-600 rather than red-500, so white button text meets
-  AA contrast. `danger-soft` is a lighter red for error text on the dark
-  background, where red-600 is too dim.
-- Checked: in the browser at 1280 px and 390 px, the entry gate, map,
-  requesting pill, and chat panel on both sides of a live connection.
+Left as is: users can see each other's approximate position (that is the
+app), and video calls reveal each user's IP address to the other. Hiding it
+needs an outside relay service, which the requirements rule out.
 
-### S2 - Map and dots
+## Phase 4 - New features
 
-- Changed: the map uses the Mapbox `globe` projection with fog and stars
-  colored from the palette tokens. Every dot is an accent-colored core with a
-  breathing glow, and busy dots are grey, dimmed, and still. The 📍 emoji is
-  replaced by a CSS "You" marker, and the online count is a pill at the top
-  left, clear of the Mapbox logo.
-- Gotcha: Mapbox positions a marker with an inline `transform` and fades
-  occluded globe markers with an inline `opacity`. The old hover `scale` and
-  busy `opacity` on the marker element either never applied or fought with
-  that, so the visuals now live on an inner `.pulse-dot-core`.
-- Decision: the "You" marker ignores pointer events, because its label can
-  sit on top of a nearby stranger's dot and swallow the click.
-- Decision: the map opens at zoom 2.5 on the user and eases to zoom 4 over
-  2 s with an ease-out curve, as Radio Garden does. An earlier version opened
-  on the whole globe first, which felt slow. `easeTo` is not marked
-  `essential`, so Mapbox jumps instead under reduced motion, and any drag or
-  scroll cancels the glide.
-- Decision: dot size follows the zoom in four bands (far below 3, mid below
-  6, near below 10, close beyond), set as `data-zoom` on the map wrapper and
-  read by CSS variables. Bands rather than a continuous scale mean React only
-  re-renders when a boundary is crossed, and no inline styles are needed.
-  Dots are 6, 10, 14, and 18 px, the "You" marker 4 px larger, and the size
-  eases between bands. The 28 px hit area stays fixed at every zoom.
-- Checked: in the browser with three and four sessions, at world zoom (globe)
-  and city zoom, at 1280 px and 390 px, with a busy pair visible to a third
-  user, and with `prefers-reduced-motion` (no animation).
+Nothing new goes through the server. Everything travels directly between the
+two browsers or stays on the device.
 
-### S3 - Floating status pills
+### What was built, and why
 
-- Changed: notices, "Requesting connection", and "Waiting for stranger to
-  accept video" render through one `StatusPill` component, with a pulsing
-  accent dot on the two pending states and the Cancel action on the request.
-- Decision: pills stack in a column instead of sharing one slot. Before,
-  a notice and the requesting pill could render on top of each other, and
-  giving either priority would hide the other (or the Cancel button) for up
-  to 3.5 s.
-- Decision: while a chat is open, the pills render inside `ChatPanel`, over
-  the top of the message list, instead of floating over the map. Notices
-  such as "Video declined." arrive mid-chat, and on a phone the panel covers
-  the whole map, so any map position would overlap it.
-- Decision: the Cancel chip is 36 px tall, with a pseudo-element padding its
-  hit area to 44 px so the pill stays compact.
-- Checked: in the browser with a fake camera: request and Cancel at 1280 px,
-  then connect, request video, decline from a 390 px session, and end. The
-  waiting and "Video declined." pills showed inside the chat panel, and the
-  notice moved to the map after End.
+- V1 - Fixed video. Video often failed to show up, and the next feature
+  built on it. Both browsers were renegotiating the call at the same moment
+  and one side's camera got lost. Now the call is set up once, and starting
+  or stopping video just swaps the camera in or out.
+- V2 - Mute and camera off. You can go quiet or hide your camera without
+  hanging up, and the stranger sees that you did.
+- C1 - "Stranger is typing". In an anonymous chat, silence looks like the
+  other person left.
+- A1 - Request alert. A soft tone and a vibration when someone wants to
+  connect or start video, so a request is not missed while you are in
+  another tab.
+- B1 - Fixed a bug found while testing: tapping a dot right after entering
+  sent a broken request and left you waiting 30 seconds.
 
-### S4 - Request prompts
+Still to check by hand: video with two real cameras, and the alert in a
+background tab and on an Android phone.
 
-- Changed: `ConnectionPrompt` is a centered card after Azar's incoming
-  request: a pulsing accent ring around a person or camera glyph, the title,
-  a subtitle, and 48 px Decline and Accept buttons with Accept as the primary.
-  The backdrop blurs the map behind it.
-- Decision: the prompt takes an `icon` prop so the connection and video
-  requests read differently at a glance. The connection request gained the
-  subtitle "Accept to start an anonymous chat." so both cards share one shape.
-- Decision: the card is an `alertdialog` labelled by its title, so screen
-  readers announce the request when it appears.
-- Checked: in the browser with a fake camera, the connection prompt at 390 px
-  and the video prompt at 1280 px over an open chat. Accepting each still
-  opened the chat and then the video panel on both sides.
+### Next, with more time
 
-### S5 - Chat panel
-
-- Changed: on desktop the chat is a floating rounded panel inset from the
-  right edge. Below the `sm` breakpoint it is a bottom sheet at 66 dvh with a
-  grabber, leaving the top of the map visible. The header has a live status
-  dot, a Video button with a camera glyph, and End. Bubbles have a tail
-  corner, wrap long or unbroken text, and keep line breaks. Before the
-  connection opens, the empty state reads "Opening a private line to the
-  stranger" instead of "Say hello".
-- Decision: the root layout sets `viewportFit: "cover"` so the safe-area
-  insets apply, and `interactiveWidget: "resizes-content"` so Android Chrome
-  shrinks the layout for the keyboard and the sheet's input stays above it.
-  iOS Safari ignores that setting and pans the focused input into view.
-- Decision: the input uses 16 px text on phones, because iOS Safari zooms
-  the page when focusing an input with smaller text.
-- Decision: the panel is opaque. A translucent, blurred panel let the glow of
-  the dots behind it bleed through as a smudge. The desktop panel stops 40 px
-  above the bottom so it does not cover the Mapbox attribution.
-- Checked: in the browser at 1280 px and 390 px: the connecting state, a
-  two-way conversation with a long sentence and a long unbroken URL, no
-  horizontal overflow, and the newest message in view after 16 messages. The
-  on-screen keyboard could not be exercised headless.
-
-### S6 - Video call
-
-- Changed: full-bleed remote video under a top-left "Stranger" chip, the
-  local preview as a rounded 3:4 tile in the top-right corner, and a floating
-  56 px End video button over a bottom gradient, padded by the bottom
-  safe-area inset. The waiting state has the same pulsing accent dot as the
-  status pills.
-- Decision: every layer is absolutely positioned inside the panel, so the D6
-  guarantee no longer depends on flex sizing. The remote stream's native size
-  cannot move the controls.
-- Decision: the local preview is mirrored, as camera apps and Azar do, so
-  moving left moves the preview left. The stream sent to the stranger is not
-  affected.
-- Checked: in the browser with fake cameras at 1920 x 1080, 2560 x 1440,
-  390 x 844, and 844 x 390. The End video button and the preview stayed fully
-  in view at every size, and End video returned both users to the chat.
-- Found: remote media is unreliable. Across four runs on this branch and on
-  `dev` before it, the accepting side's remote tracks always arrived muted
-  (no frames), and in half the runs the requesting side never received a
-  remote stream. This is in the WebRTC video path, not the panel, and is out
-  of scope for Phase 2.
-
-### S7 - Entry gate
-
-- Changed: the gate is a transparent overlay on the live map. A slowly
-  spinning globe shows who is online (not tappable), labelled only with their
-  countries. On Enter the gate fades and the globe flies to the user. This
-  replaces S2's opening.
-- Decision: the gate polls every 5 s instead of 1.5 s, since every visitor
-  polls there. Country names are HTML markers placed from Mapbox's
-  `country-boundaries-v1` tileset, with overlapping labels hidden.
-- Gotcha: the style's own country labels show nothing on a phone, because
-  the tiles at that zoom carry no country names.
-- Note for Phase 3: the gate reads every online user's offset coordinates
-  before joining, so any `/api/poll` fix must keep a view-only path.
-- Checked: at 1280 px and 390 px: spin, labels, fly-in, reduced motion,
-  denied location, and two sessions connecting.
-
-## Phase 3
-
-### H1 - Server-issued session tokens
-
-- Changed: `join` creates the public id and a random 32-byte token on the
-  server, stores only the token's SHA-256 hash, and returns the token.
-  `poll` and `signal` identify the caller by `Authorization: Bearer`, and
-  `leave` by the token in its beacon body. `signal` takes the sender from the
-  token only. A poll with no token (the entry gate) returns peers and nothing
-  else. The page keeps the token instead of a client-made id, and the gate
-  shows an error if joining fails.
-- Decision: the migration clears `Presence` and `Signal` before adding the
-  required `tokenHash` column. Both hold only transient rows, and existing
-  rows have no token.
-- Gotcha: the database had been created with `db push`, so the initial
-  migration was never recorded. A diff against the pre-H1 schema was empty,
-  so it was baselined with `migrate resolve --applied`, with no changes.
-- Gotcha: `migrate dev` over the Neon pooler left Prisma's advisory lock held
-  on a pooled connection, and every later migration timed out. Cleared from
-  the Neon console. Run migrations over the direct (non-pooler) host.
-- Decision: local development now uses a Neon `dev` branch. The original
-  database is production, and the H1 migration is applied there only at
-  deploy time.
-- Checked: against the `dev` branch, F2 to F5 no longer reproduce (anonymous
-  and forged-token polls get no mail, a body `fromId` is ignored, a join with
-  another id makes a new row, a leave without the token is a 401). In the
-  browser: the gate shows dots, two sessions connect, chat, and end, and a
-  closed tab leaves the map in about 3 s.
-
-### H2 - Server-side pairing for signals
-
-- Changed: presence rows record `requestedId` (a pending outgoing request)
-  and `peerId` (the accepted pairing). `lib/pairing.ts` decides each signal:
-  `request` to an online, idle user (busy or offline still auto-declines),
-  `accept` and `decline` only from the requested user, `end` to the peer or
-  to one's own pending request, and `offer`, `answer`, `ice` only between
-  paired users. Anything else is a 409 and is not delivered.
-- Decision: `end` needs no target row, so a user whose peer already left can
-  still unpair and clear their own busy flag (the D4 path).
-- Decision: the other side's row is only changed while it still points at
-  the sender, so a late signal cannot undo a newer pairing.
-- Note: when one user ends a chat, the other's client also sends `end` as its
-  channel closes. That second `end` is now a harmless 409.
-- Checked: against the Neon `dev` branch, a stranger's `accept`, `end`,
-  `offer`, `ice`, and `decline` are all rejected, busy is only set by a real
-  accept, and end, cancel, and a peer leaving all free both users. In the
-  browser: decline, cancel, connect, chat, video, end, and reconnect all
-  work, and a closed tab frees the other user (about 15 s, the same as
-  before H2).
-
-### H3 - Validate every request with Zod
-
-- Changed: `lib/schemas.ts` holds a Zod schema for each input (join
-  coordinates, the leave token, the signal body with a UUID `toId`, one of
-  the seven signal types, and a payload of at most 64 KB), and `parseBody`
-  reads and validates a body. The hand-written checks (`isValidLatLng`,
-  `VALID_TYPES`, `MAX_PAYLOAD`) are gone. Adds `zod`.
-- Decision: `sessionForToken` checks the token's format first, so a malformed
-  token never reaches the database, and the signal route validates its body
-  before looking up the sender.
-- Decision: `parseBody` reads the body as text, because `sendBeacon` does not
-  send a JSON content type.
-- Checked: with the database address deliberately broken, every malformed
-  join, leave, signal, and poll returned 400 or 401 while valid ones reached
-  the database (500), so validation runs first. Against the Neon `dev`
-  branch, the full two-session browser flow still works.
-
-### H5 - A view-only feed for the entry gate
-
-- Changed: `GET /api/dots` returns online positions and busy flags with no
-  session ids, read-only and filtered by staleness. `/api/poll` now requires
-  a token. The gate reads `/api/dots`, and switches to the token poll once
-  the user joins.
-- Decision: the map keys markers by id, so gate dots are keyed by their
-  position (`lat,lng`) in `gateDots`. Positions are stable between polls, so
-  markers stay put.
-- Checked: no unauthenticated response (`/api/dots`, `/api/join`, a poll
-  without a token) contains a session id, and only token polls return ids.
-  In the browser, the gate calls only `/api/dots`, its dots and country
-  labels still show, and the full two-session flow still works.
-
-### H6 - Security headers
-
-- Changed: `next.config.ts` sends a Content-Security-Policy,
-  `Permissions-Policy` (camera, microphone, and geolocation for the app
-  only), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
-  and `X-Frame-Options: DENY` on every response.
-- Decision: the CSP has no nonces, as in the Next.js guide's "without nonces"
-  setup, because nonces force every page to render dynamically. Inline
-  scripts are allowed instead, and `'unsafe-eval'` only in development.
-  Mapbox needs its API, tile, and telemetry hosts in `connect-src`, and
-  `blob:` for its workers and images.
-- Note: CSP does not cover WebRTC. Calls use Google's public STUN server
-  (`lib/webrtc.ts`), which sees each peer's IP address while connecting.
-- Checked: all five headers on the page and API routes. A full browser run
-  (gate globe with country labels, connect, chat, video, end, reconnect)
-  had no CSP violations under `next start` or `next dev`.
-
-### H4 - Rate limits
-
-- Changed: `lib/rate-limit.ts` caps each session at 120 signals and 10
-  connection requests per minute, each recipient at 100 undelivered
-  messages, and each client address at 10 joins per minute. Over a limit the
-  route returns 429.
-- Decision: limits sit well above measured use. Two full sessions (connect,
-  chat, video on and off, end, twice) sent 14 signals per user in a minute,
-  at most 4 in a second. Real networks gather more ICE candidates.
-- Decision: session limits use fixed one-minute windows stored on the
-  presence row, counted in one `UPDATE ... RETURNING` so concurrent signals
-  cannot both slip under the limit, and gone when the session ends. Every
-  attempt counts, including ones the pairing rules reject.
-- Decision: joins have no session yet, so they are limited in memory per
-  server instance, keyed by the client address hashed with a per-instance
-  salt. On serverless this is best effort, and it trusts `x-forwarded-for`,
-  which Vercel sets itself.
-- Note: the mailbox cap counts then inserts, so heavy concurrency can overshoot
-  it by a few messages.
-- Checked: against the Neon `dev` branch, 200 parallel signals stopped at
-  exactly 120, the 11th request in a minute got 429, a mailbox stopped at 100
-  until drained, and the 11th join from one address got 429 while another
-  address still joined. The full two-session browser flow had no 429s.
+- Next stranger: one button that ends the chat and connects you to another
+  available person nearby, so you do not have to hunt for dots.
+- Block: hide a stranger for the rest of your session, so they cannot
+  request you again. An anonymous app needs some answer to bad behavior.
+- Language and interests: optional tags on your dot for this session only,
+  so you can find someone you can actually talk to.
+- Share a photo: send an image straight to the stranger over the chat
+  connection, never through the server.
+- Desktop notifications: with permission, show a system notification for a
+  request when the Pulse tab is not open in front of you.

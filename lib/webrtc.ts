@@ -1,19 +1,25 @@
 export type DescType = "offer" | "answer" | "ice";
+export type MediaKind = "mic" | "camera";
+export type MediaFlags = Record<MediaKind, boolean>;
 export type PeerControl =
   | "video-request"
   | "video-accept"
   | "video-decline"
-  | "video-end";
+  | "video-end"
+  | `${MediaKind}-${"on" | "off"}`;
 
 interface PeerCallbacks {
   onSignal: (type: DescType, payload: string) => void;
   onChat: (text: string) => void;
+  onTyping: () => void;
   onControl: (ctrl: PeerControl) => void;
   onRemoteStream: (stream: MediaStream | null) => void;
   onConnectionState: (state: RTCPeerConnectionState) => void;
   onChannelOpen: () => void;
   onChannelClose: () => void;
 }
+
+const TYPING_SEND_INTERVAL_MS = 3_000;
 
 const ICE_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -26,9 +32,11 @@ export class PeerSession {
   private makingOffer = false;
   private ignoreOffer = false;
   private localStream: MediaStream | null = null;
+  private readonly remoteStream = new MediaStream();
   private closed = false;
   private readonly cb: PeerCallbacks;
   private pendingCandidates: RTCIceCandidateInit[] = [];
+  private lastTypingAt = 0;
 
   constructor(initiator: boolean, cb: PeerCallbacks) {
     this.cb = cb;
@@ -53,15 +61,21 @@ export class PeerSession {
       }
     };
 
-    this.pc.ontrack = ({ streams }) => {
-      this.cb.onRemoteStream(streams[0] ?? null);
+    this.pc.ontrack = ({ track }) => {
+      this.remoteStream.addTrack(track);
+      this.cb.onRemoteStream(this.remoteStream);
     };
 
     this.pc.onconnectionstatechange = () => {
       this.cb.onConnectionState(this.pc.connectionState);
     };
 
+    // Media slots are negotiated up front, and video only swaps tracks in
+    // and out of them. Adding tracks mid-call made both sides renegotiate at
+    // once, and the losing side's tracks were never negotiated.
     if (initiator) {
+      this.pc.addTransceiver("audio", { direction: "sendrecv" });
+      this.pc.addTransceiver("video", { direction: "sendrecv" });
       this.dc = this.pc.createDataChannel("chat");
       this.wireDataChannel(this.dc);
     } else {
@@ -83,6 +97,8 @@ export class PeerSession {
         const msg = JSON.parse(e.data as string);
         if (msg.t === "chat" && typeof msg.text === "string") {
           this.cb.onChat(msg.text);
+        } else if (msg.t === "typing") {
+          this.cb.onTyping();
         } else if (msg.t === "ctrl" && typeof msg.ctrl === "string") {
           this.cb.onControl(msg.ctrl as PeerControl);
         }
@@ -115,6 +131,10 @@ export class PeerSession {
     await this.pc.setRemoteDescription(desc);
     await this.flushPendingCandidates();
     if (desc.type === "offer") {
+      // Transceivers created from a remote offer start recvonly.
+      for (const t of this.pc.getTransceivers()) {
+        if (t.direction === "recvonly") t.direction = "sendrecv";
+      }
       await this.pc.setLocalDescription();
       if (this.pc.localDescription) {
         this.cb.onSignal("answer", JSON.stringify(this.pc.localDescription));
@@ -135,6 +155,16 @@ export class PeerSession {
 
   sendChat(text: string) {
     this.safeSend({ t: "chat", text });
+    // The receiver hides the indicator on each message, so the next
+    // keystroke should be able to show it again at once.
+    this.lastTypingAt = 0;
+  }
+
+  sendTyping() {
+    const now = Date.now();
+    if (now - this.lastTypingAt < TYPING_SEND_INTERVAL_MS) return;
+    this.lastTypingAt = now;
+    this.safeSend({ t: "typing" });
   }
 
   sendControl(ctrl: PeerControl) {
@@ -154,24 +184,36 @@ export class PeerSession {
         audio: true,
       });
       for (const track of this.localStream.getTracks()) {
-        this.pc.addTrack(track, this.localStream);
+        await this.senderFor(track.kind)?.replaceTrack(track);
       }
     }
     return this.localStream;
   }
 
+  // A disabled track keeps its slot and sends silence or black frames, so
+  // toggling never renegotiates.
+  setMediaEnabled(kind: MediaKind, enabled: boolean) {
+    const tracks =
+      kind === "mic"
+        ? this.localStream?.getAudioTracks()
+        : this.localStream?.getVideoTracks();
+    for (const track of tracks ?? []) track.enabled = enabled;
+  }
+
   stopVideo() {
     if (this.localStream) {
-      for (const track of this.localStream.getTracks()) track.stop();
-      for (const sender of this.pc.getSenders()) {
-        if (sender.track) {
-          try {
-            this.pc.removeTrack(sender);
-          } catch {}
-        }
+      for (const track of this.localStream.getTracks()) {
+        track.stop();
+        void this.senderFor(track.kind)?.replaceTrack(null).catch(() => {});
       }
       this.localStream = null;
     }
+  }
+
+  private senderFor(kind: string): RTCRtpSender | undefined {
+    return this.pc
+      .getTransceivers()
+      .find((t) => t.receiver.track.kind === kind)?.sender;
   }
 
   close() {
