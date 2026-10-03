@@ -26,6 +26,10 @@ export interface SignalMsg {
   createdAt: string;
 }
 
+export interface JoinResponse {
+  token: string;
+}
+
 export interface PollResponse {
   peers: PeerDot[];
   signals: SignalMsg[];

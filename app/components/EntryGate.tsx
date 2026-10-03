@@ -6,7 +6,7 @@ export default function EntryGate({
   onReady,
   leaving,
 }: {
-  onReady: (lat: number, lng: number) => void;
+  onReady: (lat: number, lng: number) => Promise<void>;
   leaving: boolean;
 }) {
   const [status, setStatus] = useState<"idle" | "locating" | "error">("idle");
@@ -20,7 +20,11 @@ export default function EntryGate({
     }
     setStatus("locating");
     navigator.geolocation.getCurrentPosition(
-      (pos) => onReady(pos.coords.latitude, pos.coords.longitude),
+      (pos) =>
+        onReady(pos.coords.latitude, pos.coords.longitude).catch(() => {
+          setStatus("error");
+          setError("Couldn't join the map. Please try again.");
+        }),
       (err) => {
         setStatus("error");
         setError(

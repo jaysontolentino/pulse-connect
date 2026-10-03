@@ -200,3 +200,32 @@
   before joining, so any `/api/poll` fix must keep a view-only path.
 - Checked: at 1280 px and 390 px: spin, labels, fly-in, reduced motion,
   denied location, and two sessions connecting.
+
+## Phase 3
+
+### H1 - Server-issued session tokens
+
+- Changed: `join` creates the public id and a random 32-byte token on the
+  server, stores only the token's SHA-256 hash, and returns the token.
+  `poll` and `signal` identify the caller by `Authorization: Bearer`, and
+  `leave` by the token in its beacon body. `signal` takes the sender from the
+  token only. A poll with no token (the entry gate) returns peers and nothing
+  else. The page keeps the token instead of a client-made id, and the gate
+  shows an error if joining fails.
+- Decision: the migration clears `Presence` and `Signal` before adding the
+  required `tokenHash` column. Both hold only transient rows, and existing
+  rows have no token.
+- Gotcha: the database had been created with `db push`, so the initial
+  migration was never recorded. A diff against the pre-H1 schema was empty,
+  so it was baselined with `migrate resolve --applied`, with no changes.
+- Gotcha: `migrate dev` over the Neon pooler left Prisma's advisory lock held
+  on a pooled connection, and every later migration timed out. Cleared from
+  the Neon console. Run migrations over the direct (non-pooler) host.
+- Decision: local development now uses a Neon `dev` branch. The original
+  database is production, and the H1 migration is applied there only at
+  deploy time.
+- Checked: against the `dev` branch, F2 to F5 no longer reproduce (anonymous
+  and forged-token polls get no mail, a body `fromId` is ignored, a join with
+  another id makes a new row, a leave without the token is a 401). In the
+  browser: the gate shows dots, two sessions connect, chat, and end, and a
+  closed tab leaves the map in about 3 s.
