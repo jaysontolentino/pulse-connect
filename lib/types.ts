@@ -26,6 +26,17 @@ export interface SignalMsg {
   createdAt: string;
 }
 
+/** A dot on the entry gate's globe: a position with no session id. */
+export interface GateDot {
+  lat: number;
+  lng: number;
+  busy: boolean;
+}
+
+export interface DotsResponse {
+  dots: GateDot[];
+}
+
 export interface JoinResponse {
   token: string;
 }

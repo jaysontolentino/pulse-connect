@@ -7,7 +7,7 @@ import ConnectionPrompt from "./components/ConnectionPrompt";
 import StatusPill from "./components/StatusPill";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
-import { join, leave, poll, sendSignal } from "@/lib/api";
+import { gateDots, join, leave, poll, sendSignal } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
 import { GATE_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from "@/lib/presence";
 import { type PeerDot, type SignalMsg, type SignalType } from "@/lib/types";
@@ -287,21 +287,28 @@ export default function Home() {
     processSignalRef.current = processSignal;
   });
 
-  // The gate polls too, so its globe shows who is online, but more slowly:
-  // every visitor polls there, including those who never enter.
+  // Before joining, the gate shows who is online from the id-free /api/dots,
+  // and more slowly: every visitor polls there, including those who never
+  // enter. Joined sessions poll with their token.
   useEffect(() => {
-    const live = phase === "live";
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
       try {
-        const data = await poll(token);
-        if (!active) return;
-        setPeers(data.peers);
-        if (live) for (const s of data.signals) processSignalRef.current(s);
+        if (token) {
+          const data = await poll(token);
+          if (!active) return;
+          setPeers(data.peers);
+          for (const s of data.signals) processSignalRef.current(s);
+        } else {
+          const dots = await gateDots();
+          if (active) setPeers(dots);
+        }
       } catch {}
-      if (active) timer = setTimeout(tick, live ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
+      if (active) {
+        timer = setTimeout(tick, token ? POLL_INTERVAL_MS : GATE_POLL_INTERVAL_MS);
+      }
     };
     tick();
 
@@ -309,7 +316,7 @@ export default function Home() {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [phase, token]);
+  }, [token]);
 
   useEffect(() => {
     if (!token || phase !== "live") return;

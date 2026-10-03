@@ -267,3 +267,17 @@
   join, leave, signal, and poll returned 400 or 401 while valid ones reached
   the database (500), so validation runs first. Against the Neon `dev`
   branch, the full two-session browser flow still works.
+
+### H5 - A view-only feed for the entry gate
+
+- Changed: `GET /api/dots` returns online positions and busy flags with no
+  session ids, read-only and filtered by staleness. `/api/poll` now requires
+  a token. The gate reads `/api/dots`, and switches to the token poll once
+  the user joins.
+- Decision: the map keys markers by id, so gate dots are keyed by their
+  position (`lat,lng`) in `gateDots`. Positions are stable between polls, so
+  markers stay put.
+- Checked: no unauthenticated response (`/api/dots`, `/api/join`, a poll
+  without a token) contains a session id, and only token polls return ids.
+  In the browser, the gate calls only `/api/dots`, its dots and country
+  labels still show, and the full two-session flow still works.
