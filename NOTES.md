@@ -281,3 +281,20 @@
   without a token) contains a session id, and only token polls return ids.
   In the browser, the gate calls only `/api/dots`, its dots and country
   labels still show, and the full two-session flow still works.
+
+### H6 - Security headers
+
+- Changed: `next.config.ts` sends a Content-Security-Policy,
+  `Permissions-Policy` (camera, microphone, and geolocation for the app
+  only), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
+  and `X-Frame-Options: DENY` on every response.
+- Decision: the CSP has no nonces, as in the Next.js guide's "without nonces"
+  setup, because nonces force every page to render dynamically. Inline
+  scripts are allowed instead, and `'unsafe-eval'` only in development.
+  Mapbox needs its API, tile, and telemetry hosts in `connect-src`, and
+  `blob:` for its workers and images.
+- Note: CSP does not cover WebRTC. Calls use Google's public STUN server
+  (`lib/webrtc.ts`), which sees each peer's IP address while connecting.
+- Checked: all five headers on the page and API routes. A full browser run
+  (gate globe with country labels, connect, chat, video, end, reconnect)
+  had no CSP violations under `next start` or `next dev`.
