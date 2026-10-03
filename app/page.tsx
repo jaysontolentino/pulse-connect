@@ -83,14 +83,26 @@ export default function Home() {
       onRemoteStream: (stream) => setRemoteStream(stream),
       onConnectionState: (state) => {
         if (state === "failed") {
-          teardown("Connection failed (network).");
+          dropConnection(ps, "Connection failed (network).");
         }
       },
       onChannelOpen: () => {
         setConn({ kind: "connected", peerId });
       },
+      onChannelClose: () => dropConnection(ps, "Stranger disconnected."),
     });
     peerRef.current = ps;
+  }
+
+  // The peer may be gone without a leave beacon, so send `end` ourselves to
+  // clear our server-side busy flag.
+  function dropConnection(ps: PeerSession, message: string) {
+    if (peerRef.current !== ps) return;
+    const c = connRef.current;
+    if (c.kind === "connecting" || c.kind === "connected") {
+      void sendSignal(sessionId, c.peerId, "end");
+    }
+    teardown(message);
   }
 
   function handleControl(ctrl: PeerControl) {
