@@ -139,7 +139,6 @@ export default function Home() {
       case "video-end":
         ps?.stopVideo();
         setLocalStream(null);
-        setRemoteStream(null);
         setVideo("none");
         break;
     }
@@ -221,7 +220,6 @@ export default function Home() {
     ps?.stopVideo();
     ps?.sendControl("video-end");
     setLocalStream(null);
-    setRemoteStream(null);
     setVideo("none");
   }
 

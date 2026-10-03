@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function VideoPanel({
   localStream,
@@ -13,6 +13,9 @@ export default function VideoPanel({
 }) {
   const localRef = useRef<HTMLVideoElement>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
+  // The remote stream exists from the moment the chat connects, so only the
+  // first decoded frame shows that the stranger's video has arrived.
+  const [remoteLive, setRemoteLive] = useState(false);
 
   useEffect(() => {
     if (localRef.current && localRef.current.srcObject !== localStream) {
@@ -37,9 +40,10 @@ export default function VideoPanel({
         ref={remoteRef}
         autoPlay
         playsInline
+        onLoadedData={() => setRemoteLive(true)}
         className="absolute inset-0 h-full w-full bg-surface object-cover"
       />
-      {!remoteStream && (
+      {!remoteLive && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted">
           <span className="size-2 rounded-full bg-accent motion-safe:animate-pulse" />
           Waiting for stranger&rsquo;s video…
