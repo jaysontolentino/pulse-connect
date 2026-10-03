@@ -18,14 +18,25 @@ export function bearerToken(request: Request): string | null {
   return match ? match[1] : null;
 }
 
+const SESSION_FIELDS = {
+  id: true,
+  busy: true,
+  peerId: true,
+  requestedId: true,
+} as const;
+
+/** The session that owns `token`, with its pairing state, or null. */
+export async function sessionForToken(token: string | null) {
+  if (!token) return null;
+  return prisma.presence.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: SESSION_FIELDS,
+  });
+}
+
 /** The public id of the session that owns `token`, or null if none does. */
 export async function sessionIdForToken(
   token: string | null,
 ): Promise<string | null> {
-  if (!token) return null;
-  const row = await prisma.presence.findUnique({
-    where: { tokenHash: hashToken(token) },
-    select: { id: true },
-  });
-  return row?.id ?? null;
+  return (await sessionForToken(token))?.id ?? null;
 }

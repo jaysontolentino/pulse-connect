@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { SignalType } from "@/lib/types";
-import { bearerToken, sessionIdForToken } from "@/lib/session";
+import { bearerToken, sessionForToken } from "@/lib/session";
+import { decideSignal, type PairingDecision } from "@/lib/pairing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,13 +21,15 @@ const MAX_PAYLOAD = 64 * 1024; // SDP/ICE are small; cap to be safe.
 
 // POST /api/signal - bearer token, body { toId, type, payload? }
 // Drops one message into the recipient's mailbox. The sender is always the
-// token's session, never an id from the body. Also manages the `busy`
-// flag so a user can only be in one connection at a time.
+// token's session, never an id from the body. Signals only flow along a
+// pending request or an accepted pairing (lib/pairing.ts), which also keeps a
+// user to one connection at a time.
 export async function POST(request: NextRequest) {
-  const fromId = await sessionIdForToken(bearerToken(request));
-  if (!fromId) {
+  const sender = await sessionForToken(bearerToken(request));
+  if (!sender) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
+  const fromId = sender.id;
 
   let body: unknown;
   try {
@@ -54,44 +57,80 @@ export async function POST(request: NextRequest) {
   const signalType = type as SignalType;
   const payloadStr = typeof payload === "string" ? payload : null;
 
-  // Enforce "one active connection at a time": if the target is already busy,
-  // auto-decline the request instead of delivering it.
-  if (signalType === "request") {
-    const target = await prisma.presence.findUnique({
-      where: { id: toId },
-      select: { busy: true },
-    });
-    if (!target) {
-      // Target went offline — tell the initiator it was declined.
-      await sendDecline(toId, fromId);
-      return Response.json({ ok: true, autoDeclined: true });
-    }
-    if (target.busy) {
-      await sendDecline(toId, fromId);
-      return Response.json({ ok: true, autoDeclined: true });
-    }
-  }
+  const target = await prisma.presence.findUnique({
+    where: { id: toId },
+    select: { id: true, busy: true, peerId: true, requestedId: true },
+  });
+  const decision = decideSignal(signalType, sender, toId, target);
 
-  // Busy transitions:
-  // - accept: the connection is now active → mark BOTH peers busy.
-  // - decline/end: free both peers.
-  if (signalType === "accept") {
-    await prisma.presence.updateMany({
-      where: { id: { in: [fromId, toId] } },
-      data: { busy: true },
-    });
-  } else if (signalType === "decline" || signalType === "end") {
-    await prisma.presence.updateMany({
-      where: { id: { in: [fromId, toId] } },
-      data: { busy: false },
-    });
+  if (decision.action === "reject") {
+    return Response.json({ error: "not paired" }, { status: 409 });
   }
+  if (decision.action === "auto-decline") {
+    // Offline or busy target: tell the initiator it was declined.
+    await sendDecline(toId, fromId);
+    return Response.json({ ok: true, autoDeclined: true });
+  }
+  await applyEffect(decision.effect, fromId, toId);
 
   await prisma.signal.create({
     data: { fromId, toId, type: signalType, payload: payloadStr },
   });
 
   return Response.json({ ok: true });
+}
+
+// Every write is scoped to the two sessions, and a row is only changed while it
+// still points at the other one, so a late signal cannot undo a newer pairing.
+async function applyEffect(
+  effect: Extract<PairingDecision, { action: "deliver" }>["effect"],
+  fromId: string,
+  toId: string,
+) {
+  switch (effect) {
+    case "request":
+      await prisma.presence.update({
+        where: { id: fromId },
+        data: { requestedId: toId },
+      });
+      break;
+    case "pair":
+      await prisma.$transaction([
+        prisma.presence.updateMany({
+          where: { id: toId, requestedId: fromId },
+          data: { peerId: fromId, requestedId: null, busy: true },
+        }),
+        prisma.presence.update({
+          where: { id: fromId },
+          data: { peerId: toId, requestedId: null, busy: true },
+        }),
+      ]);
+      break;
+    case "answer-request":
+      await prisma.presence.updateMany({
+        where: { id: toId, requestedId: fromId },
+        data: { requestedId: null },
+      });
+      break;
+    case "unpair":
+      await prisma.presence.update({
+        where: { id: fromId },
+        data: { peerId: null, busy: false },
+      });
+      await prisma.presence.updateMany({
+        where: { id: toId, peerId: fromId },
+        data: { peerId: null, busy: false },
+      });
+      break;
+    case "cancel-request":
+      await prisma.presence.update({
+        where: { id: fromId },
+        data: { requestedId: null },
+      });
+      break;
+    case "none":
+      break;
+  }
 }
 
 // Helper: deliver an auto-decline from `target` back to `initiator`.
